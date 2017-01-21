@@ -1,0 +1,68 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+use constant {
+    false => 0,
+    true  => 1
+};
+
+sub rar_list {
+    my $rarfile = shift;
+
+    if (open(PIPE, "unrar v -c- -y $rarfile |")) {
+        my $line = 1;
+        my $name = undef;
+        my $parse = false;
+        my ($size, $mday, $mon, $year, $hour, $min, $dir);
+        while (<PIPE>) {
+            if (/^\-{10,}/) {
+                if (!$parse) {
+                    $parse = true;
+                    next;
+                } else {
+                    last;
+                }
+            }
+            if ($parse) {
+                if ($line % 2) {
+                    if (/^ (.+)\n$/) {
+                        $name = $1;
+                    } else {
+                        $name = undef;
+                        next;
+                    }
+                } else {
+                    if ($name) {
+                        if (/^ +(\d+) +\d+ +\d+% ([0-9]{2})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}) +[V.]([D.])[R.][H.][S.][A.][C.] +/) {
+                            $size = $1;
+                            $mday = $2;
+                            $mon = $3;
+                            $year = $4;
+                            $hour = $5;
+                            $min = $6;
+                            $dir = $7;
+                            $year += ($year > 70) ? 1900 : 2000;
+                            printf("%s 0 0 %s %04d-%02d-%02d %02d:%02d %s\n",
+                                ($dir eq 'D') ? 'drwxr-xr-x' : '-rw-r--r--',
+                                $size,
+                                $year, $mon, $mday, $hour, $min,
+                                $name);
+                        }
+                    }
+                }
+                $line++;
+            }
+        }
+        close(PIPE);
+    }
+}
+
+if (defined($ARGV[1]) && ($ARGV[0] eq "list")) {
+    my $rarfile = $ARGV[1];
+    &rar_list($rarfile);
+} else {
+    exit(1);
+}
+
+exit(0);

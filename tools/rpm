@@ -1,0 +1,97 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+use Fcntl ':mode';
+
+use constant {
+    false => 0,
+    true  => 1
+};
+
+use constant {
+    DEFAULT_USER  => 'nobody',
+    DEFAULT_GROUP => 'nogroup'
+};
+
+sub rpm_list {
+    my $rpmfile = shift;
+
+    if (open(PIPE, "rpm -qp --qf '[%{FILEMODES} %{FILEUSERNAME} %{FILEGROUPNAME} %{FILESIZES} %{FILEMTIMES} %{FILENAMES} -> %{FILELINKTOS}\n]' $rpmfile 2> /dev/null |")) {
+        my ($parent, $prev) = ("", "");
+        my ($min, $hour, $mday, $mon, $year);
+        my ($mode, $user, $group, $size, $mtime, $path, $link);
+        while (<PIPE>) {
+            if (m!^(\d+) (.+?) (.+?) (\d+) (\d+) /(.+?) \-> (.*?)\n$!) {
+                $mode = $1;
+                $user = $2;
+                $group = $3;
+                $size = $4;
+                $mtime = $5;
+                $path = $6;
+                $link = $7;
+                if ($user !~ /^\d+$/) {
+                    $user = getpwnam($user);
+                    $user = getpwnam(DEFAULT_USER) if (!defined($user));
+                }
+                if ($group !~ /^\d+$/) {
+                    $group = getgrnam($group);
+                    $group = getgrnam(DEFAULT_GROUP) if (!defined($group));
+                }
+                ($min, $hour, $mday, $mon, $year) = (localtime($mtime))[1..5];
+
+                $parent = ($path =~ m!^(.+)/!) ? $1 : "";
+                if ($prev !~ m!^\Q$parent\E!) {
+                    my $ignore_equal = true;
+                    my @parelems = split(m!/!, $parent);
+                    my @prevelems = split(m!/!, $prev);
+                    for (my $i = 0; $i < scalar @parelems; $i++) {
+                        next if ($ignore_equal && defined($prevelems[$i]) &&
+                            ($parelems[$i] eq $prevelems[$i]));
+                        $ignore_equal = false if ($ignore_equal);
+                        printf("drwxr-xr-x %hu %hu 0 %04d-%02d-%02d %02d:%02d ",
+                            $user, $group,
+                            $year + 1900, $mon + 1, $mday, $hour, $min);
+                        for (my $j = 0; $j <= $i; $j++) {
+                            print($parelems[$j]);
+                            print("/") if ($j < $i);
+                        }
+                        print("\n");
+                    }
+                }
+
+                printf("%c%c%c%c%c%c%c%c%c%c %hu %hu %s %04d-%02d-%02d %02d:%02d %s",
+                    (S_ISDIR($mode)) ? ord('d') : (S_ISLNK($mode)) ? ord('l') : ord('-'),
+                    ($mode & S_IRUSR) ? ord('r') : ord('-'),
+                    ($mode & S_IWUSR) ? ord('w') : ord('-'),
+                    ($mode & S_IXUSR) ? ord('x') : ord('-'),
+                    ($mode & S_IRGRP) ? ord('r') : ord('-'),
+                    ($mode & S_IWGRP) ? ord('w') : ord('-'),
+                    ($mode & S_IXGRP) ? ord('x') : ord('-'),
+                    ($mode & S_IROTH) ? ord('r') : ord('-'),
+                    ($mode & S_IWOTH) ? ord('w') : ord('-'),
+                    ($mode & S_IXOTH) ? ord('x') : ord('-'),
+                    $user, $group,
+                    (S_ISDIR($mode)) ? 0 : $size,
+                    $year + 1900, $mon + 1, $mday, $hour, $min,
+                    $path);
+                if (S_ISLNK($mode)) {
+                    printf(" -> %s", $link);
+                }
+                print("\n");
+
+                $prev = $path;
+            }
+        }
+        close(PIPE);
+    }
+}
+
+if (defined($ARGV[1]) && ($ARGV[0] eq "list")) {
+    my $rpmfile = $ARGV[1];
+    &rpm_list($rpmfile);
+} else {
+    exit(1);
+}
+
+exit(0);

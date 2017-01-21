@@ -1,0 +1,113 @@
+CDIndex README
+Andriy Lesyuk <s-andy@in.if.ua>
+
+1. Introduction
+
+CDIndex is CD/DVD media cataloging tool. Unlike many other tools
+this tool is intended generally for command line.
+
+CDIndex include the following binaries:
+ o cdindex - tool for indexing media
+ o cdbrowse - tool for integrating cd catalog into mc
+
+2. Installation
+
+This section describes how to install CDIndex.
+
+2.1. Installing cdbrowse
+
+To install cdbrowse add the following to the file
+/usr/share/mc/extfs/extfs.ini
+
+# CD index
+cdi
+
+After that copy cdbrowse to the /usr/share/mc/extfs/ dir and
+create symlink cdi:
+
+# ln -s cdbrowse cdi
+
+Now add the following lines to mc.ext (/etc/mc/mc.ext):
+
+# CD index
+regex/\.cdi$
+        Open=%cd %p#cdi
+
+3. Project idea
+
+This section describes how the project may look in future.
+Currently the author does not have enough time to finish
+it... :(
+
+Main database is a binary file with extension .cdi which
+contains only file structure. Symlinks information (path
+to real file) is to be stored externally in .cdl file (.cdi
+contains offset of the path, path is NULL-terminated).
+
+All other information (audio, video etc) should be stored in
+external files too. This of course will make the directory
+containing catalog files almost unreadable but... This would
+add flexibility to the tool. The tool is to be based on
+extensions so if the corresponding externsion is not installed
+this won't break the database (corresponding external file
+will be just ignored). This would also allow someone to copy
+only certain type of information (for example, he/she may just
+skip video information).
+
+CDIndex creates one database file for each media (there can
+be more files with different extensions). This would allow
+to copy only some medias to another location without need to
+do some special conversion. All files may be listed in some
+special upper-level catalog file (preferable in XML format).
+This catalog file may contain also cover images for every
+media or any other information.
+
+Now about extension. The easiest and most flexible method is
+to support external commands which should provide specially
+formatted information to the core. But this method will work
+slowly. An alternative is to use dynamically loaded modules.
+I believe both methods should be used!
+
+4. Known issues
+
+This section lists known issues...
+
+4.1. Segfault in libarchive when working with large ISO
+
+Seems like libarchive cannot handle large (more than
+0xFFFFFFFF bytes) ISO image.
+
+"Workaround": large files are currently ignored.
+
+4.2. Libarchive retrieves unordered data
+
+Directories and files retrieved from libarchive are not
+ordered. This requires searching parent entries in the CDI
+database...
+
+Workaround: parent entries are searched in db.
+
+4.3. Libarchive archive_read_symlink returns garbage
+
+Several first symbols of the string returned by
+archive_read_symlink are garbage. This is related only to
+ISO archives. Bug #419558.
+
+Workaround: symlinks in ISO are ignored.
+
+4.4. No info for parent directories for some ZIP archives
+
+Libarchive does not return any upper directory info for
+some ZIP archives for unknown reason (seems like they are
+there).
+
+Workaround: none.
+
+5. TODO
+
+5.1. Put more infor about the media into header
+
+It would be good if cdindex would detect more info about
+the media. For example - is cd multisession, does it have
+Joilet and Rock Risge extensions, how much sessions (tracks)
+etc.
