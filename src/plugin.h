@@ -5,8 +5,6 @@
 #ifndef _CD_PLUGIN_H_
 #define _CD_PLUGIN_H_
 
-#define __USE_LARGEFILE64
-
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <regex.h>

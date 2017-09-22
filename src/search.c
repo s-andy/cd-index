@@ -2,8 +2,6 @@
  * Copyright (C) 2007 Andriy Lesyuk; All rights reserved.
  */
 
-#define _GNU_SOURCE
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -97,8 +95,8 @@ int cd_find_match(cd_file_entry* entry, cd_find_exp* exps) {
         } else if ((exp->flags & FIND_MASK) == FIND_TYPE) {
             if (entry->type != exp->type) return false;
         } else if ((exp->flags & FIND_MASK) == FIND_MTIME) {
-            time_t mtime;
-            struct tm* tm = localtime(&entry->mtime);
+            time_t mtime = entry->mtime;
+            struct tm* tm = localtime(&mtime);
             tm->tm_sec = 0;
             tm->tm_min = 0;
             tm->tm_hour = 0;
@@ -152,7 +150,7 @@ int cd_get_path(char* buf, int buflen, const char* file, cd_find_path* path, con
     return len;
 }
 
-inline int isoctal(int c) {
+static inline int isoctal(int c) {
     if ((c >= 0x30) && (c <= 0x37)) return c;
     else return 0;
 }
@@ -182,7 +180,7 @@ void cd_find_output(const char* fmt, cd_file_entry* entry, cd_find_path* path, c
                 type = NONE;
             } else if (type == FORMAT) {
                 if (fmt[i] == '%') putchar('%');
-                else if (fmt[i] == 'b') printf("%lu", (entry->size / 512));
+                else if (fmt[i] == 'b') printf("%u", (entry->size / 512));
                 else if (fmt[i] == 'd') {
                     int depth = 1;
                     if (parent) {
@@ -210,7 +208,7 @@ void cd_find_output(const char* fmt, cd_file_entry* entry, cd_find_path* path, c
                     char pbuf[plen+1];
                     cd_get_path(pbuf, plen, NULL, path, parent);
                     printf(pbuf);
-                } else if (fmt[i] == 'k') printf("%lu", (entry->size / 1024));
+                } else if (fmt[i] == 'k') printf("%u", (entry->size / 1024));
                 else if (fmt[i] == 'l') {
                     if (entry->type == CD_LNK) {
                         char* lpath = strdup(file->filename);
@@ -244,16 +242,19 @@ void cd_find_output(const char* fmt, cd_file_entry* entry, cd_find_path* path, c
                     char pbuf[plen+1];
                     cd_get_path(pbuf, plen, entry->name, path, parent);
                     printf(pbuf);
-                } else if (fmt[i] == 's') printf("%lu", entry->size);
-                else if (fmt[i] == 't') printf(ctime(&entry->mtime));
-                else if (fmt[i] == 'T') {
+                } else if (fmt[i] == 's') printf("%u", entry->size);
+                else if (fmt[i] == 't') {
+                    time_t mtime = entry->mtime;
+                    printf(ctime(&mtime));
+                } else if (fmt[i] == 'T') {
                     i++;
-                    if (fmt[i] == '@') printf("%lu", entry->mtime);
+                    if (fmt[i] == '@') printf("%u", entry->mtime);
                     else {
                         char buf[32];
                         char tfmt[] = "%X";
+                        time_t mtime = entry->mtime;
                         tfmt[1] = fmt[i];
-                        strftime(buf, 32, tfmt, localtime(&entry->mtime));
+                        strftime(buf, 32, tfmt, localtime(&mtime));
                         printf(buf);
                     }
                 } else if (fmt[i] == 'u') {

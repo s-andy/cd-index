@@ -1,7 +1,7 @@
 # Copyright (C) 2007 Andriy Lesyuk; All rights reserved.
 
 GCC = gcc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 
 CDILIBS = -larchive
 

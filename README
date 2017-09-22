@@ -7,8 +7,10 @@ CDIndex is CD/DVD media cataloging tool. Unlike many other tools
 this tool is intended generally for command line.
 
 CDIndex include the following binaries:
+
  o cdindex - tool for indexing media
  o cdbrowse - tool for integrating cd catalog into mc
+ o cdfind - search tool with syntax similar to Unix find
 
 2. Installation
 
@@ -17,12 +19,12 @@ This section describes how to install CDIndex.
 2.1. Installing cdbrowse
 
 To install cdbrowse add the following to the file
-/usr/share/mc/extfs/extfs.ini
+/usr/share/mc/extfs/extfs.ini (not needed?)
 
 # CD index
 cdi
 
-After that copy cdbrowse to the /usr/share/mc/extfs/ dir and
+After that copy cdbrowse to the /usr/lib/mc/extfs.d/ dir and
 create symlink cdi:
 
 # ln -s cdbrowse cdi
@@ -31,7 +33,7 @@ Now add the following lines to mc.ext (/etc/mc/mc.ext):
 
 # CD index
 regex/\.cdi$
-        Open=%cd %p#cdi
+        Open=%cd %p/cdi://
 
 3. Project idea
 

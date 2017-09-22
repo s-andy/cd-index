@@ -168,7 +168,7 @@ static const cd_unicode_item cd_utf16_map[] = {
     { 0x0000, 0x00 }
 };
 
-inline cd_offset cd_ntoh(cd_offset n) {
+static inline cd_offset cd_ntoh(cd_offset n) {
     unsigned char* bytes = (unsigned char*)&n;
     return (bytes[0] << 21) | (bytes[1] << 14) | (bytes[2] << 7) | bytes[3];
 }
@@ -209,14 +209,14 @@ void cd_strcpy(char* dst, int dstlen, const char* src, int srclen, cd_byte chars
     }
 }
 
-inline size_t cd_wcslen(const cd_word* wstr) {
+static inline size_t cd_wcslen(const cd_word* wstr) {
     register int i;
     const char* str = (const char*)wstr;
     for (i = 0; str[i]; i += 2);
     return i / 2;
 }
 
-inline void cd_wcstrncpy(char* str, cd_word* wcs, size_t len) {
+static inline void cd_wcstrncpy(char* str, cd_word* wcs, size_t len) {
     register int i;
     for (i = 0; i < len; i++) {
         if (wcs[i] < 0x0080) str[i] = (char)wcs[i];
@@ -243,7 +243,7 @@ const char* cd_getstr(const char* name, cd_byte charset) {
     }
 }
 
-inline int cd_strtoi(const char* str, cd_byte charset) {
+static inline int cd_strtoi(const char* str, cd_byte charset) {
     const char* src = cd_getstr(str, charset);
     if (src) {
         int value = strtol(src, NULL, 10);

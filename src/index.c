@@ -8,8 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define __USE_LARGEFILE64
-
 #include <unistd.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -145,7 +143,7 @@ void cd_save_entry(cd_file_entry* entry, cd_base* base) {
         DEBUG_OUTPUT(DEBUG_BASEIO, "saving record #%lu\n", entry->id);
         write(base->base_fd, (void*)entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset));
     } else {
-        printf("[error] seek failed: \"%s\" (%lu)\n", entry->name, entry->id);
+        printf("[error] seek failed: \"%s\" (%u)\n", entry->name, entry->id);
     }
 }
 

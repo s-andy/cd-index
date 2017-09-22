@@ -118,6 +118,7 @@ int cd_list(const char* file) {
     int base = open(file, O_RDONLY);
     if (base != -1) {
         cd_offset i;
+        time_t mtime;
         struct tm* tm;
         struct stat stat;
         char* fpath;
@@ -152,9 +153,10 @@ int cd_list(const char* file) {
             grp = getgrgid(entry.gid);
             if (grp) printf(" %s", grp->gr_name);
             else printf(" %d", entry.gid);
-            tm = localtime(&entry.mtime);
+            mtime = entry.mtime;
+            tm = localtime(&mtime);
             fpath = (char*)cd_get_path(path, entry.name);
-            printf(" %lu %02d-%02d-%04d %02d:%02d %s",
+            printf(" %u %02d-%02d-%04d %02d:%02d %s",
                 (entry.type != CD_DIR) ? entry.size : 0,
                 tm->tm_mon + 1, tm->tm_mday, tm->tm_year + 1900,
                 tm->tm_hour, tm->tm_min,
@@ -231,7 +233,7 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
                                     fprintf(f, "Version:       MPEG %d.%d Layer %s\n",
                                         (audio.mpeg == 0x11) ? 1 : 2, (audio.mpeg == 0x00) ? 5 : 0,
                                         (audio.layer == 0x11) ? "I" : ((audio.layer == 0x10) ? "II" : "III"));
-                                    if (audio.bitrate) fprintf(f, "Duration:      %02lu:%02lu\n",
+                                    if (audio.bitrate) fprintf(f, "Duration:      %02u:%02u\n",
                                         (entry.size * 8 / (audio.bitrate * 1000)) / 60,
                                         (entry.size * 8 / (audio.bitrate * 1000)) % 60);
                                     fprintf(f, "Bitrate:       %u kbps\n", audio.bitrate);

@@ -26,7 +26,7 @@ typedef struct {
     regex_t* __regex;
 } cd_external_cmd;
 
-inline int isunsafe(int c) {
+static inline int isunsafe(int c) {
     if ((c == 0x20) ||  // SPACE
         (c == 0x21) ||  // !
         (c == 0x26) ||  // &
@@ -126,7 +126,7 @@ int cd_external_read(void* pipe, const char** name, const char** link, struct st
         int offset;
         struct tm tm;
         memset(&tm, '\0', sizeof(struct tm));
-        if (sscanf(s, "%u %u %llu %04d-%02d-%02d %02d:%02d %n",
+        if (sscanf(s, "%u %u %ld %04d-%02d-%02d %02d:%02d %n",
             &stat->st_uid, &stat->st_gid, &stat->st_size,
             &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour, &tm.tm_min,
             &offset) == EOF) return -1;

@@ -5,6 +5,8 @@
 #ifndef _CD_DATA_H_
 #define _CD_DATA_H_
 
+#include <stdint.h>
+
 #define CD_NAME_MAX         255
 
 #define packed(NAME)        __attribute__((__packed__)) NAME
@@ -24,15 +26,16 @@ typedef enum {
     CD_LNK = 3      // symlink
 } cd_file_type;
 
-typedef unsigned char   cd_bool;
-typedef unsigned char   cd_byte;
-typedef unsigned char   cd_type;
-typedef unsigned short  cd_mode;
-typedef unsigned short  cd_uid;
-typedef unsigned short  cd_gid;
-typedef unsigned short  cd_word;
-typedef unsigned long   cd_size;
-typedef unsigned long   cd_offset;
+typedef uint8_t  cd_bool;
+typedef uint8_t  cd_byte;
+typedef uint8_t  cd_type;
+typedef uint16_t cd_mode;
+typedef uint16_t cd_uid;
+typedef uint16_t cd_gid;
+typedef uint16_t cd_word;
+typedef uint32_t cd_size;
+typedef uint32_t cd_offset;
+typedef uint32_t cd_time;
 
 typedef struct {
     char mark[3];           // "CDI"
@@ -47,8 +50,8 @@ typedef struct {
     char publisher[128];    // Name of publisher
     char preparer[128];     // Name of preparer
     char generator[128];    // Name of ISO generator
-    time_t ctime;           // Created
-    time_t mtime;           // Modified
+    cd_time ctime;          // Created
+    cd_time mtime;          // Modified
 } packed(cd_iso_header);    // 433
 
 typedef struct  {
@@ -56,7 +59,7 @@ typedef struct  {
     cd_type type;           // Type (dir, symlink or file)
     char name[CD_NAME_MAX]; // File name
     cd_mode mode;           // Access permissions
-    time_t mtime;           // Created time
+    cd_time mtime;          // Created time
     cd_uid uid;             // UID
     cd_gid gid;             // GID
     cd_size size;           // Size of the file
@@ -64,6 +67,6 @@ typedef struct  {
     cd_offset parent;       // Parent directory
     cd_offset child;        // First file in the directory (for dirs)
     cd_offset next;         // Next file in the directory
-} packed(cd_file_entry);    // 286
+} packed(cd_file_entry);    // 290
 
 #endif /* _CD_DATA_H_ */
