@@ -11,6 +11,7 @@ cd_extractor_info* cd_extractors;
 void cd_init_extractors(cd_base* base) {
     cd_extractors = NULL;
     cd_extractor_load_audio(base);
+    cd_extractor_load_rawimage(base);
 }
 
 void cd_free_extractors() {

@@ -38,5 +38,6 @@ void cd_add_extractor(cd_extractor_info* info, cd_base* base);
 cd_extractor_info* cd_find_extractor(const char* file);
 
 void cd_extractor_load_audio(cd_base* base);
+void cd_extractor_load_rawimage(cd_base* base);
 
 #endif /* _CD_EXTRACT_H_ */

@@ -12,7 +12,7 @@
 
 void* cd_archive_init() {
     struct archive* arc =  archive_read_new();
-    archive_read_support_compression_all(arc);
+    archive_read_support_filter_all(arc);
     archive_read_support_format_all(arc);
     return arc;
 }
@@ -57,12 +57,12 @@ void cd_archive_close(void* arc) {
 }
 
 void cd_archive_finish(void* arc) {
-    archive_read_finish(arc);
+    archive_read_free(arc);
 }
 
 static cd_plugin_info cd_archive = {
     "archiver",
-    "\\.(iso|tar(\\.(gz|bz2)){0,1}|tgz|cpio)$",
+    "\\.(iso|tar(\\.(gz|bz2|xz)){0,1}|tgz|cpio)$",
     FALSE,
     cd_archive_init,
     cd_archive_open,

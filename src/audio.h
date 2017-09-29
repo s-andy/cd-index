@@ -7,6 +7,7 @@
 
 #include "data.h"
 
+// FIXME:
 //#define INCLUDE_DURATION
 
 #define CD_MUSIC_EXT        ".cda"
@@ -314,7 +315,7 @@ static const cd_search_item cd_lang_map[] = {
 };
 
 typedef struct {
-    char mark[3];           // "CDM"
+    char mark[3];           // "CDA"
     cd_byte version;        // 0x01
 } packed(cd_audio_mark);
 
