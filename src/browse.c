@@ -188,7 +188,7 @@ int cd_list(const char* file) {
     return EXIT_SUCCESS;
 }
 
-int cd_copyout(const char* arch, const char* file, const char* to) {
+int cd_copyout(const char* arch, const char* file, const char* to) { // FIXME
     regex_t* regex = (regex_t*)malloc(sizeof(regex_t));
     regcomp(regex, "\\.mp3$", REG_EXTENDED|REG_ICASE|REG_NOSUB);
     int result = regexec(regex, file, 0, NULL, 0);

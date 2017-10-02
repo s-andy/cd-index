@@ -2,10 +2,7 @@
  * Copyright (C) 2017 Andriy Lesyuk; All rights reserved.
  */
 
-#include <errno.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <libraw/libraw.h>
 #include <wand/MagickWand.h>
@@ -30,43 +27,13 @@ float cd_get_coordinate(float coord[3], char ref) {
     return result;
 }
 
-int cd_thumbnail_init(cd_rawimage_base* rbase) {
+int cd_rawimage_thumbnail_init(cd_rawimage_base* rbase) {
     if (!rbase->wand) {
         MagickWandGenesis();
         rbase->wand = NewMagickWand();
-        int error = mkdir(rbase->dir, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH);
-        if (error) {
-            if (errno == EEXIST) {
-                struct stat dstat;
-                error = stat(rbase->dir, &dstat);
-                if (error || !S_ISDIR(dstat.st_mode)) {
-                    rbase->skip_thumbs = 1;
-                    printf("[warning] unable to create directory %s\n", rbase->dir);
-                }
-            } else {
-                rbase->skip_thumbs = 1;
-                printf("[warning] failed to create directory %s\n", rbase->dir);
-            }
-        }
+        rbase->skip_thumbs = cd_create_data_dir(rbase->dir);
     }
     return !rbase->skip_thumbs;
-}
-
-int cd_get_thumbnail_size(int* width, int* height) {
-    if (*width > *height) {
-        if (*width > CD_THUMBNAIL_SIZE) {
-            *height = (int)((*height) * CD_THUMBNAIL_SIZE / (*width));
-            *width = CD_THUMBNAIL_SIZE;
-            return 1;
-        }
-    } else {
-        if (*height > CD_THUMBNAIL_SIZE) {
-            *width = (int)((*width) * CD_THUMBNAIL_SIZE / (*height));
-            *height = CD_THUMBNAIL_SIZE;
-            return 1;
-        }
-    }
-    return 0;
 }
 
 void* cd_rawimage_init(cd_base* base) {
@@ -96,8 +63,7 @@ cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* ud
         mark.version = CD_PICTURE_VERSION;
         write(rbase->fd, &mark, sizeof(cd_picture_mark));
     }
-    int error = libraw_open_file(rbase->rdata, file);
-    if (error == 0) {
+    if (libraw_open_file(rbase->rdata, file) == 0) {
         libraw_adjust_sizes_info_only(rbase->rdata);
         cd_picture_entry entry;
         memset(&entry, 0x00, sizeof(cd_picture_entry));
@@ -120,12 +86,14 @@ cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* ud
         write(rbase->fd, &entry, sizeof(cd_picture_entry));
 #ifdef INCLUDE_THUMBNAILS
         if (!rbase->skip_thumbs) {
-            // TODO: Try libextract
-            error = libraw_unpack_thumb(rbase->rdata);
-            if (error == 0) {
-                libraw_processed_image_t* thumb = libraw_dcraw_make_mem_thumb(rbase->rdata, &error);
+            /*
+             * FIXME: Raw images usually include thumbnails of the needed size, but there is no lib to read them from there.
+             *        P.S. libexiv2 can do this, but it's for C++.
+             */
+            if (libraw_unpack_thumb(rbase->rdata) == 0) {
+                libraw_processed_image_t* thumb = libraw_dcraw_make_mem_thumb(rbase->rdata, NULL);
                 if (thumb) {
-                    if (cd_thumbnail_init(rbase)) {
+                    if (cd_rawimage_thumbnail_init(rbase)) {
                         MagickReadImageBlob(rbase->wand, thumb->data, thumb->data_size);
                         int twidth = rbase->rdata->thumbnail.twidth;
                         int theight = rbase->rdata->thumbnail.theight;
@@ -146,7 +114,7 @@ cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* ud
                 printf("[warning] failed to unpack %s\n", file);
             }
         }
-#endif
+#endif /* INCLUDE_THUMBNAILS */
         return offset;
     } else {
         printf("[warning] failed to open %s\n", file);

@@ -7,8 +7,6 @@
 
 #include "data.h"
 
-#define INCLUDE_THUMBNAILS
-
 #define CD_THUMBNAIL_SIZE   160
 
 #define CD_PICTURE_EXT      ".cdp"
@@ -29,9 +27,13 @@ typedef struct {
     char creator[64];       // Software/camera
     char author[64];        // Author
     cd_time ctime;          // Created
-    cd_time mtime;          // Modified
+    cd_time mtime;          // Modified FIXME not used (yet?)
     float latitude;         // GPS latitude
     float longtitude;       // GPS longitude
 } packed(cd_picture_entry);
+
+int cd_get_thumbnail_size(int* width, int* height);
+
+int cd_create_data_dir(const char* dir);
 
 #endif /* _CD_IMAGE_H_ */

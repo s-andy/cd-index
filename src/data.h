@@ -7,6 +7,8 @@
 
 #include <stdint.h>
 
+#define INCLUDE_THUMBNAILS
+
 #define CD_NAME_MAX         255
 
 #define packed(NAME)        __attribute__((__packed__)) NAME
