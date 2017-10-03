@@ -13,10 +13,13 @@
 #include <libavutil/dict.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
 
 #include "extract.h"
 #include "image.h"
 #include "video.h"
+#include "cdindex.h"
 
 typedef struct {
     const char* dir;
@@ -80,10 +83,10 @@ int cd_video_thumbnail_init(AVCodecContext** jpegCtx, AVStream* stream, AVFrame*
         if (codec) {
             (*jpegCtx) = avcodec_alloc_context3(codec);
             (*jpegCtx)->pix_fmt = AV_PIX_FMT_YUVJ420P;
-            (*jpegCtx)->width = frame->width; // FIXME scale
-            (*jpegCtx)->height = frame->height; // FIXME scale
+            (*jpegCtx)->width = frame->width;
+            (*jpegCtx)->height = frame->height;
             (*jpegCtx)->time_base = stream->time_base;
-            // TODO: cd_get_thumbnail_size(&((*jpegCtx)->width), &((*jpegCtx)->height));
+            cd_get_thumbnail_size(&((*jpegCtx)->width), &((*jpegCtx)->height));
             if (avcodec_open2((*jpegCtx), codec, NULL) == 0) {
                 vbase->skip_thumbs = cd_create_data_dir(vbase->dir);
             } else {
@@ -96,6 +99,100 @@ int cd_video_thumbnail_init(AVCodecContext** jpegCtx, AVStream* stream, AVFrame*
         }
     }
     return !vbase->skip_thumbs;
+}
+
+AVFrame* cd_video_resize_frame(AVCodecContext* srcCtx, AVCodecContext* dstCtx, AVFrame* frame) {
+    struct SwsContext* swsCtx = sws_getCachedContext(NULL, srcCtx->width, srcCtx->height, srcCtx->pix_fmt, dstCtx->width, dstCtx->height, srcCtx->pix_fmt, SWS_LANCZOS, NULL, NULL, NULL);
+    AVFrame* newf = av_frame_alloc();
+    int bufsize = av_image_get_buffer_size(srcCtx->pix_fmt, dstCtx->width, dstCtx->height, 1);
+    uint8_t* buf = (uint8_t*)av_malloc(bufsize * sizeof(uint8_t));
+    av_image_fill_arrays(newf->data, newf->linesize, buf, srcCtx->pix_fmt, dstCtx->width, dstCtx->height, 1);
+    sws_scale(swsCtx, (const uint8_t* const*)frame->data, frame->linesize, 0, srcCtx->height, newf->data, newf->linesize);
+    av_free(buf);
+    av_frame_free(&frame);
+    sws_freeContext(swsCtx);
+    newf->format = srcCtx->pix_fmt;
+    newf->width = dstCtx->width;
+    newf->height = dstCtx->height;
+    return newf;
+}
+
+void cd_video_generate_thumbnails(AVFormatContext* format, int vindex, cd_video_base* vbase, int id, cd_bool* interlaced) {
+    int duration = (format->duration != AV_NOPTS_VALUE) ? format->duration / AV_TIME_BASE : 0;
+    int start = 0, range = duration;
+    cd_get_offset_and_range(&start, &range);
+    AVCodec* decoder = avcodec_find_decoder(format->streams[vindex]->codecpar->codec_id);
+    AVCodec* jpegenc = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
+    if (decoder && jpegenc) {
+        AVCodecContext* jpegCtx = NULL;
+        AVCodecContext* codecCtx = avcodec_alloc_context3(decoder);
+        avcodec_parameters_to_context(codecCtx, format->streams[vindex]->codecpar);
+        if (avcodec_open2(codecCtx, decoder, NULL) == 0) {
+            int i;
+            srand(time(NULL));
+            AVPacket packet;
+            AVPacket jpegPac;
+            av_init_packet(&packet);
+            av_init_packet(&jpegPac);
+            for (i = 0; i < 3; i++) {
+                int augment = floor(range / 3);
+                if (augment > 1) {
+                    int seek = start + (rand() % augment) + augment * i;
+                    if (seek > 0) {
+                        if (av_seek_frame(format, vindex, seek / av_q2d(format->streams[vindex]->time_base), 0) < 0) {
+                            printf("[warning] seeking to %d:%02d failed\n", (int)floor(seek / 60), seek % 60);
+                            break;
+                        } else {
+                            avcodec_flush_buffers(codecCtx);
+                        }
+                        DEBUG_OUTPUT(DEBUG_DEBUG, "seeking to %d:%02d\n", (int)floor(seek / 60), seek % 60);
+                    }
+                }
+                while (av_read_frame(format, &packet) == 0) {
+                    if (packet.stream_index == vindex) {
+                        int error;
+                        AVFrame* frame = av_frame_alloc();
+                        do {
+                            avcodec_send_packet(codecCtx, &packet);
+                            error = avcodec_receive_frame(codecCtx, frame);
+                        } while (error == AVERROR(EAGAIN));
+                        if (error != 0) {
+                            printf("[warning] could not read video frame\n");
+                        } else if (cd_video_thumbnail_init(&jpegCtx, format->streams[vindex], frame, vbase)) {
+                            if (interlaced) *interlaced = frame->interlaced_frame;
+                            if (frame->width != jpegCtx->width) {
+                                frame = cd_video_resize_frame(codecCtx, jpegCtx, frame);
+                            }
+                            avcodec_send_frame(jpegCtx, frame);
+                            avcodec_receive_packet(jpegCtx, &jpegPac);
+                            char* tpath = (char*)malloc(strlen(vbase->dir) + 16);
+                            sprintf(tpath, "%s/%u-%d.jpg", vbase->dir, id, i + 1);
+                            printf("[video] writing thumbnail to %s\n", tpath);
+                            int tfd = open(tpath, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+                            if (tfd != -1) {
+                                write(tfd, jpegPac.data, jpegPac.size);
+                                close(tfd);
+                            }
+                            free(tpath);
+                            av_packet_unref(&jpegPac);
+                        }
+                        av_frame_free(&frame);
+                        av_packet_unref(&packet);
+                        break;
+                    } else { // It's an audio frame
+                        av_packet_unref(&packet);
+                    }
+                }
+                if (augment <= 1) break;
+            }
+        } else {
+            printf("[warning] could not open decoder\n");
+        }
+        if (jpegCtx) avcodec_free_context(&jpegCtx);
+        avcodec_free_context(&codecCtx);
+    } else {
+        printf("[warning] could not load codec\n");
+    }
 }
 
 void* cd_video_init(cd_base* base) {
@@ -188,78 +285,13 @@ cd_offset cd_video_getdata(const char* file, cd_file_entry* cdentry, void* udata
                 entry.subtitles++;
             }
         }
-        off_t offset = lseek(((cd_video_base*)udata)->vfd, 0, SEEK_END);
-        write(((cd_video_base*)udata)->vfd, &entry, sizeof(cd_video_entry));
 #ifdef INCLUDE_THUMBNAILS
         if (!((cd_video_base*)udata)->skip_thumbs && (entry.seconds > 0) && (vindex != -1)) {
-            int start = 0, range = entry.seconds;
-            cd_get_offset_and_range(&start, &range);
-            AVCodec* decoder = avcodec_find_decoder(format->streams[vindex]->codecpar->codec_id);
-            AVCodec* jpegenc = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
-            if (decoder && jpegenc) {
-                AVCodecContext* jpegCtx = NULL;
-                AVCodecContext* codecCtx = avcodec_alloc_context3(decoder);
-                avcodec_parameters_to_context(codecCtx, format->streams[vindex]->codecpar);
-                if (avcodec_open2(codecCtx, decoder, NULL) == 0) {
-                    srand(time(NULL));
-                    AVPacket packet;
-                    AVPacket jpegPac;
-                    av_init_packet(&packet);
-                    av_init_packet(&jpegPac);
-                    for (i = 0; i < 3; i++) {
-                        int step = floor(entry.seconds / 3);
-                        if (step > 1) {
-                            int seek = start + (rand() % step) + step * i;
-                            if ((seek > 0) && (av_seek_frame(format, vindex, seek / av_q2d(format->streams[vindex]->time_base), 0) < 0)) {
-                                printf("[warning] failed seeking for %s\n", file);
-                                break;
-                            }
-                            printf(" *> Seeking to %d sec\n", seek); // FIXME
-                        }
-                        while (av_read_frame(format, &packet) == 0) {
-                            if (packet.stream_index == vindex) {
-                                AVFrame* frame = av_frame_alloc();
-                                avcodec_send_packet(codecCtx, &packet);
-                                int error = avcodec_receive_frame(codecCtx, frame);
-                                if (error == AVERROR(EAGAIN)) {
-                                    printf(" *> Retrying...\n");
-                                    avcodec_send_packet(codecCtx, &packet);
-                                    avcodec_receive_frame(codecCtx, frame);
-                                }
-                                printf(" *> Frame: %dx%d\n", frame->width, frame->height); // FIXME
-                                if (cd_video_thumbnail_init(&jpegCtx, format->streams[vindex], frame, (cd_video_base*)udata)) {
-                                    avcodec_send_frame(jpegCtx, frame);
-                                    avcodec_receive_packet(jpegCtx, &jpegPac);
-                                    char* tpath = (char*)malloc(strlen(((cd_video_base*)udata)->dir) + 16);
-                                    sprintf(tpath, "%s/%u-%d.jpg", ((cd_video_base*)udata)->dir, cdentry->id, i + 1);
-                                    printf("[video] writing thumbnail to %s\n", tpath);
-                                    int tfd = open(tpath, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
-                                    if (tfd != -1) {
-                                        write(tfd, jpegPac.data, jpegPac.size);
-                                        close(tfd);
-                                    }
-                                    free(tpath);
-                                    av_packet_unref(&jpegPac);
-                                }
-                                av_frame_unref(frame);
-                                av_packet_unref(&packet);
-                                break;
-                            } else { // It's an audio frame
-                                av_packet_unref(&packet);
-                            }
-                        }
-                        if (step <= 1) break;
-                    }
-                } else {
-                    printf("[warning] could not open codec for %s\n", file);
-                }
-                if (jpegCtx) avcodec_free_context(&jpegCtx);
-                avcodec_free_context(&codecCtx);
-            } else {
-                printf("[warning] could not load codec for %s\n", file);
-            }
+            cd_video_generate_thumbnails(format, vindex, (cd_video_base*)udata, cdentry->id, &entry.video.interlaced);
         }
 #endif /* INCLUDE_THUMBNAILS */
+        off_t offset = lseek(((cd_video_base*)udata)->vfd, 0, SEEK_END);
+        write(((cd_video_base*)udata)->vfd, &entry, sizeof(cd_video_entry));
         avformat_close_input(&format);
         return offset;
     } else {

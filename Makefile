@@ -3,9 +3,9 @@
 # FIXME separate CFLAGS with CDINDEX_FLAGS and CDILIBS with CDINDEX_CDILIBS
 
 GCC = gcc
-CFLAGS = -g -Wall -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 `pkg-config --cflags MagickWand` `pkg-config --cflags libavformat` `pkg-config --cflags libavcodec` `pkg-config --cflags libavutil`
+CFLAGS = -g -Wall -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 `pkg-config --cflags MagickWand` `pkg-config --cflags libavformat` `pkg-config --cflags libavcodec` `pkg-config --cflags libavutil` `pkg-config --cflags libswscale`
 
-CDILIBS = -lm -larchive -lraw `pkg-config --libs MagickWand` `pkg-config --libs libavformat` `pkg-config --libs libavcodec` `pkg-config --libs libavutil`
+CDILIBS = -lm -larchive -lraw `pkg-config --libs MagickWand` `pkg-config --libs libavformat` `pkg-config --libs libavcodec` `pkg-config --libs libavutil` `pkg-config --libs libswscale`
 
 cdindex: bin bin/cdindex bin/cdbrowse bin/cdfind
 

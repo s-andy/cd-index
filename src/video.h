@@ -31,6 +31,7 @@ typedef struct {
         char codec_tag[4];  // E.g., XVID
         cd_word bitrate;    // Only video, kb/s
         float framerate;    // Float, fps
+        cd_bool interlaced; // Filled only if INCLUDE_THUMBNAILS is defined
     } video;
     cd_offset audio;        // Offset in streams database
     cd_byte vstreams;       // 1+ means 3D (usually)

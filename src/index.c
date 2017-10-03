@@ -140,7 +140,7 @@ cd_file_entry* cd_create_entry(const char* name, struct stat64* stat, cd_file_en
 void cd_save_entry(cd_file_entry* entry, cd_base* base) {
     off_t offset = sizeof(cd_iso_header) + (entry->id - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
     if (lseek(base->base_fd, offset, SEEK_SET) == offset) {
-        DEBUG_OUTPUT(DEBUG_BASEIO, "saving record #%lu\n", entry->id);
+        DEBUG_OUTPUT(DEBUG_BASEIO, "saving record #%u\n", entry->id);
         write(base->base_fd, (void*)entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset));
     } else {
         printf("[error] seek failed: \"%s\" (%u)\n", entry->name, entry->id);

@@ -175,7 +175,7 @@ int cd_list(const char* file) {
                 }
             }
             printf("\n");
-            DEBUG_OUTPUT(DEBUG_DEBUG, "%3lu: p:%3lu <- n:%3lu -> c:%3lu %s\n",
+            DEBUG_OUTPUT(DEBUG_DEBUG, "%3u: p:%3u <- n:%3u -> c:%3u %s\n",
                 i + 1, entry.parent, entry.next, entry.child, entry.name);
             if ((entry.type <= CD_ARC) && (entry.child != 0))
                 path = cd_add_entry(path, &entry, i + 1, base);
