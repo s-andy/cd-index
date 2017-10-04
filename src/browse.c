@@ -18,6 +18,7 @@
 #include "data.h"
 #include "cdindex.h"
 #include "audio.h"
+#include "video.h"
 
 typedef struct __cd_path_entry cd_path_entry;
 struct __cd_path_entry {
@@ -26,13 +27,13 @@ struct __cd_path_entry {
     cd_path_entry* prev;
 };
 
-// Updated MC does not recognize Mon DD YYYY HH:MM :(
-/*
-static const char* months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+typedef int (*cd_entry_dump)(const char*, cd_file_entry*, const char*);
+
+typedef struct __cd_dumper_info cd_dumper_info;
+struct __cd_dumper_info {
+    const char* regex;
+    cd_entry_dump dump;
 };
-*/
 
 cd_path_entry* cd_push_entry(cd_path_entry* parent, cd_file_entry* entry) {
     cd_path_entry* path = (cd_path_entry*)malloc(sizeof(cd_path_entry));
@@ -188,106 +189,155 @@ int cd_list(const char* file) {
     return EXIT_SUCCESS;
 }
 
-int cd_copyout(const char* arch, const char* file, const char* to) { // FIXME
-    regex_t* regex = (regex_t*)malloc(sizeof(regex_t));
-    regcomp(regex, "\\.mp3$", REG_EXTENDED|REG_ICASE|REG_NOSUB);
-    int result = regexec(regex, file, 0, NULL, 0);
-    free(regex);
-    if (result == REG_NOMATCH) return EXIT_FAILURE;
-    int base = open(arch, O_RDONLY);
-    if (base != -1) {
-        size_t length;
-        const char* next;
-        const char* element;
-        cd_file_entry entry;
-        cd_offset offset = sizeof(cd_iso_header);
-        for (element = file; element;) {
-            next = strchr(element, '/');
-            length = (next) ? next - element : strlen(element);
-            for (;;) {
-                lseek(base, offset, SEEK_SET);
-                read(base, (void*)&entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset));
-                if (!strncmp(element, entry.name, length) && !entry.name[length]) {
-                    if (next) {
-                        if (entry.type == CD_DIR) {
-                            offset = sizeof(cd_iso_header) + (entry.child - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
-                        } else {
-                            return EXIT_FAILURE;
-                        }
-                    } else {
-                        if ((entry.type == CD_REG) && entry.info) {
-                            char* cdafile = (char*)malloc(strlen(arch) + 1);
-                            strncpy(cdafile, arch, strlen(arch) - 4);
-                            cdafile[strlen(arch)-4] = '\0';
-                            strcat(cdafile, CD_MUSIC_EXT);
-                            int fd = open(cdafile, O_RDONLY);
-                            free(cdafile);
-                            if (fd != -1) {
-                                umask(066);
-                                FILE* f = fopen(to, "w");
-                                if (f) {
-                                    cd_audio_entry audio;
-                                    lseek(fd, entry.info, SEEK_SET);
-                                    read(fd, &audio, sizeof(cd_audio_entry));
-                                    fprintf(f, "File:          %s\n", file);
-                                    fprintf(f, "Version:       MPEG %d.%d Layer %s\n",
-                                        (audio.mpeg == 0x11) ? 1 : 2, (audio.mpeg == 0x00) ? 5 : 0,
-                                        (audio.layer == 0x11) ? "I" : ((audio.layer == 0x10) ? "II" : "III"));
-                                    if (audio.bitrate) fprintf(f, "Duration:      %02u:%02u\n",
-                                        (entry.size * 8 / (audio.bitrate * 1000)) / 60,
-                                        (entry.size * 8 / (audio.bitrate * 1000)) % 60);
-                                    fprintf(f, "Bitrate:       %u kbps\n", audio.bitrate);
-                                    fprintf(f, "Sampling rate: %u Hz\n", audio.freq);
-                                    fprintf(f, "Mode:          ");
-                                    if (audio.mode == 0x11) fprintf(f, "mono (single channel)");
-                                    else if (audio.mode == 0x10) fprintf(f, "mono (dual channel)");
-                                    else if (audio.mode == 0x01) fprintf(f, "joint stereo");
-                                    else fprintf(f, "stereo");
-                                    fprintf(f, "\n");
-                                    fprintf(f, "Copyright:     %s\n", (audio.copy) ? "yes" : "no");
-                                    fprintf(f, "Original:      %s\n", (audio.orig) ? "yes" : "no");
-                                    fprintf(f, "\n");
-                                    fprintf(f, "Artist:        %s\n", (*audio.artist) ? audio.artist : "-");
-                                    fprintf(f, "Title:         %s\n", (*audio.title) ? audio.title : "-");
-                                    fprintf(f, "Album:         %s\n", (*audio.album) ? audio.album : "-");
-                                    fprintf(f, "Year:          ");
-                                    if (audio.year) fprintf(f, "%d", audio.year);
-                                    else fprintf(f, "-");
-                                    fprintf(f, "\n");
-                                    fprintf(f, "Genre:         %s\n", (audio.genre != NONE) ? cd_get_genre(audio.genre) : "-");
-                                    fprintf(f, "Language:      %s\n", (audio.lang) ? cd_get_lang(audio.lang) : "-");
-                                    fprintf(f, "Track number:  ");
-                                    if (audio.track) fprintf(f, "%d", audio.track);
-                                    else fprintf(f, "-");
-                                    fprintf(f, "\n\n---\n\n");
-                                    fclose(f);
+int cd_dump_audio(const char* arch, cd_file_entry* entry, const char* to) {
+    int ret = EXIT_SUCCESS;
+    char* cda = (char*)malloc(strlen(arch) + 1);
+    strncpy(cda, arch, strlen(arch) - 4);
+    cda[strlen(arch)-4] = '\0';
+    strcat(cda, CD_MUSIC_EXT);
+    int fd = open(cda, O_RDONLY);
+    free(cda);
+    if (fd != -1) {
+        umask(066);
+        FILE* f = fopen(to, "w");
+        if (f) {
+            cd_audio_entry audio;
+            lseek(fd, entry->info, SEEK_SET);
+            read(fd, &audio, sizeof(cd_audio_entry));
+            fprintf(f, "File:          %s\n", entry->name);
+            fprintf(f, "Version:       MPEG %d.%d Layer %s\n",
+                (audio.mpeg == 0x11) ? 1 : 2, (audio.mpeg == 0x00) ? 5 : 0,
+                (audio.layer == 0x11) ? "I" : ((audio.layer == 0x10) ? "II" : "III"));
+            if (audio.bitrate) fprintf(f, "Duration:      %02u:%02u\n",
+                (entry->size * 8 / (audio.bitrate * 1000)) / 60,
+                (entry->size * 8 / (audio.bitrate * 1000)) % 60);
+            fprintf(f, "Bitrate:       %u kbps\n", audio.bitrate);
+            fprintf(f, "Sampling rate: %u Hz\n", audio.freq);
+            fprintf(f, "Mode:          ");
+            if (audio.mode == 0x11) fprintf(f, "mono (single channel)");
+            else if (audio.mode == 0x10) fprintf(f, "mono (dual channel)");
+            else if (audio.mode == 0x01) fprintf(f, "joint stereo");
+            else fprintf(f, "stereo");
+            fprintf(f, "\n");
+            fprintf(f, "Copyright:     %s\n", (audio.copy) ? "yes" : "no");
+            fprintf(f, "Original:      %s\n", (audio.orig) ? "yes" : "no");
+            fprintf(f, "\n");
+            fprintf(f, "Artist:        %s\n", (*audio.artist) ? audio.artist : "-");
+            fprintf(f, "Title:         %s\n", (*audio.title) ? audio.title : "-");
+            fprintf(f, "Album:         %s\n", (*audio.album) ? audio.album : "-");
+            fprintf(f, "Year:          ");
+            if (audio.year) fprintf(f, "%d", audio.year);
+            else fprintf(f, "-");
+            fprintf(f, "\n");
+            fprintf(f, "Genre:         %s\n", (audio.genre != NONE) ? cd_get_genre(audio.genre) : "-");
+            fprintf(f, "Language:      %s\n", (audio.lang) ? cd_get_lang(audio.lang) : "-");
+            fprintf(f, "Track number:  ");
+            if (audio.track) fprintf(f, "%d", audio.track);
+            else fprintf(f, "-");
+            fprintf(f, "\n\n---\n\n");
+            fclose(f);
+        } else {
+            ret = EXIT_FAILURE;
+        }
+        close(fd);
+    } else {
+        ret = EXIT_FAILURE;
+    }
+    return ret;
+}
+
+int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
+    int ret = EXIT_SUCCESS;
+    char* cdv = (char*)malloc(strlen(arch) + 1);
+    strncpy(cdv, arch, strlen(arch) - 4);
+    cdv[strlen(arch)-4] = '\0';
+    strcat(cdv, CD_VIDEO_EXT);
+    int fd = open(cdv, O_RDONLY);
+    free(cdv);
+    if (fd != -1) {
+        umask(066);
+        FILE* f = fopen(to, "w");
+        if (f) {
+            cd_video_entry video;
+            lseek(fd, entry->info, SEEK_SET);
+            read(fd, &video, sizeof(cd_video_entry));
+            fprintf(f, "File:          %s\n", entry->name);
+            // TODO
+            fprintf(f, "\n\n---\n\n");
+            fclose(f);
+        } else {
+            ret = EXIT_FAILURE;
+        }
+        close(fd);
+    } else {
+         ret = EXIT_FAILURE;
+    }
+    return ret;
+}
+
+cd_dumper_info cd_dumpers[] = {
+    { "\\.mp3$", cd_dump_audio },
+    { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv)$", cd_dump_video },
+    // TODO image
+    { NULL, NULL }
+};
+
+int cd_copyout(const char* arch, const char* file, const char* to) {
+    cd_dumper_info* dumper;
+    for (dumper = cd_dumpers; dumper->dump; dumper++) {
+        regex_t* regex = (regex_t*)malloc(sizeof(regex_t));
+        regcomp(regex, dumper->regex, REG_EXTENDED|REG_ICASE|REG_NOSUB);
+        int result = regexec(regex, file, 0, NULL, 0);
+        regfree(regex);
+        free(regex);
+        if (result == 0) {
+            int base = open(arch, O_RDONLY);
+            if (base != -1) {
+                size_t length;
+                const char* next;
+                const char* element;
+                cd_file_entry entry;
+                cd_offset offset = sizeof(cd_iso_header);
+                for (element = file; element;) {
+                    next = strchr(element, '/');
+                    length = (next) ? next - element : strlen(element);
+                    for (;;) {
+                        lseek(base, offset, SEEK_SET);
+                        read(base, (void*)&entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset));
+                        if (!strncmp(element, entry.name, length) && !entry.name[length]) {
+                            if (next) {
+                                if (entry.type == CD_DIR) {
+                                    offset = sizeof(cd_iso_header) + (entry.child - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
                                 } else {
-                                    close(fd);
+                                    close(base);
                                     return EXIT_FAILURE;
                                 }
-                                close(fd);
                             } else {
-                                return EXIT_FAILURE;
+                                close(base);
+                                if ((entry.type == CD_REG) && entry.info) {
+                                    return dumper->dump(arch, &entry, to);
+                                } else {
+                                    return EXIT_FAILURE;
+                                }
                             }
+                            break;
+                        } else if (entry.next) {
+                            offset = sizeof(cd_iso_header) + (entry.next - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
                         } else {
+                            close(base);
                             return EXIT_FAILURE;
                         }
                     }
-                    break;
-                } else if (entry.next) {
-                    offset = sizeof(cd_iso_header) + (entry.next - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
-                } else {
-                    return EXIT_FAILURE;
+                    element = next;
+                    if (element) element++;
                 }
+                close(base);
+            } else {
+                return EXIT_FAILURE;
             }
-            element = next;
-            if (element) element++;
         }
-        close(base);
-    } else {
-        return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
+    return EXIT_FAILURE;
 }
 
 int main(int argc, char* argv[]) {

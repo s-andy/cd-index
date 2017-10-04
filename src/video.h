@@ -38,6 +38,7 @@ typedef struct {
     cd_byte astreams;       // Number of audio streams
     cd_byte subtitles;      // Number of *embedded* subtitles
     char title[128];
+    cd_dword imdb;
     cd_time ctime;
     float latitude;
     float longtitude;

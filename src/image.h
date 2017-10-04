@@ -24,12 +24,12 @@ typedef struct {
     cd_offset offset;       // ID of entry
     cd_word width;          // Width
     cd_word height;         // Height
-    char creator[64];       // Software/camera
+    char creator[64];       // Software/camera TODO: camera model
     char author[64];        // Author
-    cd_time ctime;          // Created
+    cd_time ctime;          // Created TODO: creation date
     cd_time mtime;          // Modified FIXME not used (yet?)
-    float latitude;         // GPS latitude
-    float longtitude;       // GPS longitude
+    float latitude;         // GPS latitude TODO: GPS latitude + GPS latitude ref
+    float longtitude;       // GPS longitude TODO: GPS longitude GPS longitude ref
 } packed(cd_picture_entry);
 
 int cd_get_thumbnail_size(int* width, int* height);

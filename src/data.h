@@ -38,6 +38,7 @@ typedef uint16_t cd_word;
 typedef uint32_t cd_size;
 typedef uint32_t cd_offset;
 typedef uint32_t cd_time;
+typedef uint32_t cd_dword;
 
 typedef struct {
     char mark[3];           // "CDI"
