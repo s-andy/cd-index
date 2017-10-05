@@ -11,15 +11,14 @@
 #include "image.h"
 
 typedef struct {
+    cd_base* base;
     libraw_data_t* rdata;
     MagickWand* wand;
     const char* dir;
-    const char* path;
-    int fd;
     int skip_thumbs;
 } cd_rawimage_base;
 
-float cd_get_coordinate(float coord[3], char ref) {
+float cd_rawimage_get_coordinate(float coord[3], char ref) {
     float result = coord[0] + coord[1] / 60 + coord[2] / 3600;
     if ((ref == 'S') || (ref == 'W')) {
         result *= -1;
@@ -29,8 +28,9 @@ float cd_get_coordinate(float coord[3], char ref) {
 
 int cd_rawimage_thumbnail_init(cd_rawimage_base* rbase) {
     if (!rbase->wand) {
-        MagickWandGenesis();
+        if (!IsMagickWandInstantiated()) MagickWandGenesis();
         rbase->wand = NewMagickWand();
+        wand_count++;
         rbase->skip_thumbs = cd_create_data_dir(rbase->dir);
     }
     return !rbase->skip_thumbs;
@@ -38,31 +38,21 @@ int cd_rawimage_thumbnail_init(cd_rawimage_base* rbase) {
 
 void* cd_rawimage_init(cd_base* base) {
     cd_rawimage_base* rbase = (cd_rawimage_base*)malloc(sizeof(cd_rawimage_base));
+    rbase->base = base;
     rbase->rdata = libraw_init(0);
     rbase->wand = NULL;
     size_t baselen = strlen(base->base_name);
     rbase->dir = (char*)malloc(baselen - 3);
     strncpy((char*)rbase->dir, base->base_name, baselen - 4);
     ((char*)rbase->dir)[baselen-4] = '\0';
-    rbase->path = (char*)malloc(baselen + 1);
-    strncpy((char*)rbase->path, base->base_name, baselen - 4);
-    ((char*)rbase->path)[baselen-4] = '\0';
-    strcat((char*)rbase->path, CD_PICTURE_EXT);
-    rbase->fd = -1;
     rbase->skip_thumbs = 0;
     return rbase;
 }
 
 cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* udata) {
     cd_rawimage_base* rbase = (cd_rawimage_base*)udata;
-    if (rbase->fd == -1) { // FIXME move this to image.c
-        rbase->fd = open(rbase->path, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
-        if (rbase->fd == -1) return 0;
-        cd_picture_mark mark;
-        memcpy(&mark.mark, CD_PICTURE_MARK, CD_PICTURE_MARK_LEN);
-        mark.version = CD_PICTURE_VERSION;
-        write(rbase->fd, &mark, sizeof(cd_picture_mark));
-    }
+    int images_fd = cd_get_image_fd(((cd_rawimage_base*)udata)->base);
+    if (images_fd == -1) return 0;
     if (libraw_open_file(rbase->rdata, file) == 0) {
         libraw_adjust_sizes_info_only(rbase->rdata);
         cd_picture_entry entry;
@@ -79,11 +69,11 @@ cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* ud
         strncpy(entry.author, rbase->rdata->other.artist, 64);
         entry.ctime = rbase->rdata->other.timestamp;
         if (rbase->rdata->other.parsed_gps.gpsparsed) {
-            entry.latitude = cd_get_coordinate(rbase->rdata->other.parsed_gps.latitude, rbase->rdata->other.parsed_gps.latref);
-            entry.longtitude = cd_get_coordinate(rbase->rdata->other.parsed_gps.longtitude, rbase->rdata->other.parsed_gps.longref);
+            entry.latitude = cd_rawimage_get_coordinate(rbase->rdata->other.parsed_gps.latitude, rbase->rdata->other.parsed_gps.latref);
+            entry.longtitude = cd_rawimage_get_coordinate(rbase->rdata->other.parsed_gps.longtitude, rbase->rdata->other.parsed_gps.longref);
         }
-        off_t offset = lseek(rbase->fd, 0, SEEK_END);
-        write(rbase->fd, &entry, sizeof(cd_picture_entry));
+        off_t offset = lseek(images_fd, 0, SEEK_END);
+        write(images_fd, &entry, sizeof(cd_picture_entry));
 #ifdef INCLUDE_THUMBNAILS
         if (!rbase->skip_thumbs) {
             /*
@@ -100,6 +90,9 @@ cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* ud
                         if (cd_get_thumbnail_size(&twidth, &theight)) {
                             MagickResizeImage(rbase->wand, twidth, theight, LanczosFilter, 1);
                         }
+                        MagickAutoOrientImage(rbase->wand);
+                        MagickStripImage(rbase->wand);
+                        MagickSetImageCompressionQuality(rbase->wand, CD_THUMBNAIL_JPEG_QUALITY);
                         char* tpath = (char*)malloc(strlen(rbase->dir) + 16);
                         sprintf(tpath, "%s/%u.jpg", rbase->dir, cdentry->id);
                         printf("[rawimage] writing thumbnail to %s\n", tpath);
@@ -126,11 +119,10 @@ void cd_rawimage_finish(void* udata) {
     libraw_close(((cd_rawimage_base*)udata)->rdata);
     if (((cd_rawimage_base*)udata)->wand) {
         DestroyMagickWand(((cd_rawimage_base*)udata)->wand);
-        MagickWandTerminus();
+        wand_count--;
+        if (IsMagickWandInstantiated() && (wand_count <= 0)) MagickWandTerminus();
     }
-    if (((cd_rawimage_base*)udata)->fd != -1) close(((cd_rawimage_base*)udata)->fd);
     free((void*)((cd_rawimage_base*)udata)->dir);
-    free((void*)((cd_rawimage_base*)udata)->path);
     free(udata);
 }
 

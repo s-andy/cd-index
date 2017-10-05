@@ -30,7 +30,7 @@ typedef struct {
     int skip_thumbs;
 } cd_video_base;
 
-time_t cd_parse_time(const char* time) {
+time_t cd_video_parse_time(const char* time) {
     struct tm tm;
     char **format;
     char* formats[] = {
@@ -240,7 +240,7 @@ cd_offset cd_video_getdata(const char* file, cd_file_entry* cdentry, void* udata
         AVDictionaryEntry* title = av_dict_get(format->metadata, "title", NULL, 0);
         if (title) strncpy(entry.title, title->value, 128);
         AVDictionaryEntry* ctime = av_dict_get(format->metadata, "creation_time", NULL, 0);
-        if (ctime) entry.ctime = cd_parse_time(ctime->value);
+        if (ctime) entry.ctime = cd_video_parse_time(ctime->value);
         AVDictionaryEntry* location = av_dict_get(format->metadata, "location", NULL, 0);
         if (location) sscanf(location->value, "%f%f/", &entry.latitude, &entry.longtitude);
         entry.vstreams = entry.astreams = entry.subtitles = 0;

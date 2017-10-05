@@ -15,9 +15,11 @@
 
 #include <regex.h>
 
+#include "base.h"
 #include "data.h"
 #include "cdindex.h"
 #include "audio.h"
+#include "image.h"
 #include "video.h"
 
 typedef struct __cd_path_entry cd_path_entry;
@@ -29,11 +31,10 @@ struct __cd_path_entry {
 
 typedef int (*cd_entry_dump)(const char*, cd_file_entry*, const char*);
 
-typedef struct __cd_dumper_info cd_dumper_info;
-struct __cd_dumper_info {
+typedef struct {
     const char* regex;
     cd_entry_dump dump;
-};
+} cd_dumper_info;
 
 cd_path_entry* cd_push_entry(cd_path_entry* parent, cd_file_entry* entry) {
     cd_path_entry* path = (cd_path_entry*)malloc(sizeof(cd_path_entry));
@@ -275,10 +276,39 @@ int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
     return ret;
 }
 
+int cd_dump_image(const char* arch, cd_file_entry* entry, const char* to) {
+    int ret = EXIT_SUCCESS;
+    char* cdp = (char*)malloc(strlen(arch) + 1);
+    strncpy(cdp, arch, strlen(arch) - 4);
+    cdp[strlen(arch)-4] = '\0';
+    strcat(cdp, CD_PICTURE_EXT);
+    int fd = open(cdp, O_RDONLY);
+    free(cdp);
+    if (fd != -1) {
+        umask(066);
+        FILE* f = fopen(to, "w");
+        if (f) {
+            cd_picture_entry image;
+            lseek(fd, entry->info, SEEK_SET);
+            read(fd, &image, sizeof(cd_picture_entry));
+            fprintf(f, "File:          %s\n", entry->name);
+            // TODO
+            fprintf(f, "\n\n---\n\n");
+            fclose(f);
+        } else {
+            ret = EXIT_FAILURE;
+        }
+        close(fd);
+    } else {
+         ret = EXIT_FAILURE;
+    }
+    return ret;
+}
+
 cd_dumper_info cd_dumpers[] = {
     { "\\.mp3$", cd_dump_audio },
     { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv)$", cd_dump_video },
-    // TODO image
+    { "\\.(bmp|gif|ico|jpe?g|png|psd|svg|tiff?|xcf|nef|crw|cr2)$", cd_dump_image },
     { NULL, NULL }
 };
 

@@ -7,7 +7,6 @@
 
 #include "data.h"
 
-// FIXME:
 //#define INCLUDE_DURATION
 
 #define CD_MUSIC_EXT        ".cda"

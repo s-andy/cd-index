@@ -7,13 +7,14 @@
 
 #include "data.h"
 
-#define CD_THUMBNAIL_SIZE   160
-
-#define CD_PICTURE_EXT      ".cdp"
+#define CD_THUMBNAIL_SIZE           160
+#define CD_THUMBNAIL_JPEG_QUALITY   76
 
 #define CD_PICTURE_MARK     "CDP"
 #define CD_PICTURE_MARK_LEN 3
 #define CD_PICTURE_VERSION  0x01
+
+extern int wand_count;
 
 typedef struct {
     char mark[3];           // "CDP"
@@ -24,16 +25,17 @@ typedef struct {
     cd_offset offset;       // ID of entry
     cd_word width;          // Width
     cd_word height;         // Height
-    char creator[64];       // Software/camera TODO: camera model
+    char creator[64];       // Software/camera
     char author[64];        // Author
-    cd_time ctime;          // Created TODO: creation date
-    cd_time mtime;          // Modified FIXME not used (yet?)
-    float latitude;         // GPS latitude TODO: GPS latitude + GPS latitude ref
-    float longtitude;       // GPS longitude TODO: GPS longitude GPS longitude ref
+    cd_time ctime;          // Created
+    float latitude;         // GPS latitude
+    float longtitude;       // GPS longitude
 } packed(cd_picture_entry);
 
 int cd_get_thumbnail_size(int* width, int* height);
 
 int cd_create_data_dir(const char* dir);
+
+int cd_get_image_fd(cd_base* base);
 
 #endif /* _CD_IMAGE_H_ */
