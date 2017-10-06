@@ -29,7 +29,7 @@ typedef struct {
     char author[64];        // Author
     cd_time ctime;          // Created
     float latitude;         // GPS latitude
-    float longtitude;       // GPS longitude
+    float longitude;        // GPS longitude
 } packed(cd_picture_entry);
 
 int cd_get_thumbnail_size(int* width, int* height);

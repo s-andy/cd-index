@@ -70,6 +70,6 @@ typedef struct  {
     cd_offset parent;       // Parent directory
     cd_offset child;        // First file in the directory (for dirs)
     cd_offset next;         // Next file in the directory
-} packed(cd_file_entry);    // 290
+} packed(cd_file_entry);    // 286 (id is not written)
 
 #endif /* _CD_DATA_H_ */

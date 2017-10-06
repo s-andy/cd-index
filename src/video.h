@@ -41,7 +41,7 @@ typedef struct {
     cd_dword imdb;
     cd_time ctime;
     float latitude;
-    float longtitude;
+    float longitude;
 } packed(cd_video_entry);
 
 typedef struct {

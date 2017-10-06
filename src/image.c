@@ -106,12 +106,12 @@ cd_time cd_image_get_ctime(MagickWand* wand) {
     if (!date) date = MagickGetImageProperty(wand, "exif:DateTime");
     if (date) {
         struct tm tm;
-        tzset();
+        // FIXME tzset();
         memset(&tm, 0x00, sizeof(struct tm));
         if (strptime(date, "%Y:%m:%d %H:%M:%S", &tm)) {
             time_t result = mktime(&tm);
             if (result != (time_t)-1) {
-               ctime = result - timezone;
+               ctime = result; // FIXME - timezone;
             }
         }
         MagickRelinquishMemory(date);
@@ -197,7 +197,7 @@ cd_offset cd_image_getdata(const char* file, cd_file_entry* cdentry, void* udata
             MagickRelinquishMemory(property);
         }
         entry.ctime = cd_image_get_ctime(wand);
-        cd_image_get_coordinates(wand, &entry.latitude, &entry.longtitude);
+        cd_image_get_coordinates(wand, &entry.latitude, &entry.longitude);
         off_t offset = lseek(images_fd, 0, SEEK_END);
         write(images_fd, &entry, sizeof(cd_picture_entry));
 #ifdef INCLUDE_THUMBNAILS

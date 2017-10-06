@@ -205,7 +205,7 @@ int cd_dump_audio(const char* arch, cd_file_entry* entry, const char* to) {
             cd_audio_entry audio;
             lseek(fd, entry->info, SEEK_SET);
             read(fd, &audio, sizeof(cd_audio_entry));
-            fprintf(f, "File:          %s\n", entry->name);
+            fprintf(f, "File:          %.*s\n", CD_NAME_MAX, entry->name);
             fprintf(f, "Version:       MPEG %d.%d Layer %s\n",
                 (audio.mpeg == 0x11) ? 1 : 2, (audio.mpeg == 0x00) ? 5 : 0,
                 (audio.layer == 0x11) ? "I" : ((audio.layer == 0x10) ? "II" : "III"));
@@ -223,9 +223,9 @@ int cd_dump_audio(const char* arch, cd_file_entry* entry, const char* to) {
             fprintf(f, "Copyright:     %s\n", (audio.copy) ? "yes" : "no");
             fprintf(f, "Original:      %s\n", (audio.orig) ? "yes" : "no");
             fprintf(f, "\n");
-            fprintf(f, "Artist:        %s\n", (*audio.artist) ? audio.artist : "-");
-            fprintf(f, "Title:         %s\n", (*audio.title) ? audio.title : "-");
-            fprintf(f, "Album:         %s\n", (*audio.album) ? audio.album : "-");
+            fprintf(f, "Artist:        %.*s\n", 64, (*audio.artist) ? audio.artist : "-");
+            fprintf(f, "Title:         %.*s\n", 128, (*audio.title) ? audio.title : "-");
+            fprintf(f, "Album:         %.*s\n", 96, (*audio.album) ? audio.album : "-");
             fprintf(f, "Year:          ");
             if (audio.year) fprintf(f, "%d", audio.year);
             else fprintf(f, "-");
@@ -247,33 +247,31 @@ int cd_dump_audio(const char* arch, cd_file_entry* entry, const char* to) {
     return ret;
 }
 
-int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
-    int ret = EXIT_SUCCESS;
-    char* cdv = (char*)malloc(strlen(arch) + 1);
-    strncpy(cdv, arch, strlen(arch) - 4);
-    cdv[strlen(arch)-4] = '\0';
-    strcat(cdv, CD_VIDEO_EXT);
-    int fd = open(cdv, O_RDONLY);
-    free(cdv);
-    if (fd != -1) {
-        umask(066);
-        FILE* f = fopen(to, "w");
-        if (f) {
-            cd_video_entry video;
-            lseek(fd, entry->info, SEEK_SET);
-            read(fd, &video, sizeof(cd_video_entry));
-            fprintf(f, "File:          %s\n", entry->name);
-            // TODO
-            fprintf(f, "\n\n---\n\n");
-            fclose(f);
+void cd_print_thumbnails(FILE* f, const char* arch, cd_file_entry* entry) {
+    int i = 0, thumb_exists = 0, header = 0;
+    size_t baselen = strlen(arch);
+    char* dir = (char*)malloc(baselen - 3);
+    strncpy(dir, arch, baselen - 4);
+    dir[baselen-4] = '\0';
+    do {
+        char* path = (char*)malloc(strlen(dir) + 18);
+        if (i > 0) {
+            sprintf(path, "%s/%u-%d.jpg", dir, entry->id, i);
         } else {
-            ret = EXIT_FAILURE;
+            sprintf(path, "%s/%u.jpg", dir, entry->id);
         }
-        close(fd);
-    } else {
-         ret = EXIT_FAILURE;
-    }
-    return ret;
+        thumb_exists = !access(path, F_OK);
+        if (thumb_exists) {
+            if (!header) {
+                fprintf(f, "Thumbnails:\n");
+                header = 1;
+            }
+            fprintf(f, "  %s\n", path);
+        }
+        free(path);
+        i++;
+    } while ((thumb_exists || (i == 1)) && (i < 10));
+    free(dir);
 }
 
 int cd_dump_image(const char* arch, cd_file_entry* entry, const char* to) {
@@ -291,9 +289,110 @@ int cd_dump_image(const char* arch, cd_file_entry* entry, const char* to) {
             cd_picture_entry image;
             lseek(fd, entry->info, SEEK_SET);
             read(fd, &image, sizeof(cd_picture_entry));
-            fprintf(f, "File:          %s\n", entry->name);
-            // TODO
+            fprintf(f, "File:          %.*s\n", CD_NAME_MAX, entry->name);
+            fprintf(f, "Dimensions:    %dx%d\n", image.width, image.height);
+            fprintf(f, "Created:       ");
+            if (image.ctime) {
+                time_t ictime = image.ctime;
+                fprintf(f, asctime(localtime(&ictime)));
+            } else fprintf(f, "-\n");
+            fprintf(f, "\n");
+            fprintf(f, "Creator:       %.*s\n", 64, (*image.creator) ? image.creator : "-");
+            fprintf(f, "Author:        %.*s\n", 64, (*image.author) ? image.author : "-");
+            fprintf(f, "Location:      ");
+            if (image.latitude || image.longitude) {
+                fprintf(f, "%f %f", image.latitude, image.longitude);
+            } else fprintf(f, "-");
             fprintf(f, "\n\n---\n\n");
+            cd_print_thumbnails(f, arch, entry);
+            fclose(f);
+        } else {
+            ret = EXIT_FAILURE;
+        }
+        close(fd);
+    } else {
+         ret = EXIT_FAILURE;
+    }
+    return ret;
+}
+
+int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
+    int ret = EXIT_SUCCESS;
+    char* cdv = (char*)malloc(strlen(arch) + 1);
+    strncpy(cdv, arch, strlen(arch) - 4);
+    cdv[strlen(arch)-4] = '\0';
+    strcat(cdv, CD_VIDEO_EXT);
+    int fd = open(cdv, O_RDONLY);
+    free(cdv);
+    if (fd != -1) {
+        umask(066);
+        FILE* f = fopen(to, "w");
+        if (f) {
+            cd_video_entry ventry;
+            lseek(fd, entry->info, SEEK_SET);
+            read(fd, &ventry, sizeof(cd_video_entry));
+            fprintf(f, "File:          %.*s\n", CD_NAME_MAX, entry->name);
+            fprintf(f, "Title:         %.*s\n", 128, (*ventry.title) ? ventry.title : "-");
+            fprintf(f, "Duration:      ");
+            if (ventry.seconds > 3600) fprintf(f, "%d:%02d:%02d\n", ventry.seconds / 3600, (ventry.seconds % 3600) / 60, ventry.seconds % 60);
+            else if (ventry.seconds > 60) fprintf(f, "%d:%02d\n", ventry.seconds / 60, ventry.seconds % 60);
+            else fprintf(f, "0:%02d\n", ventry.seconds);
+            fprintf(f, "Created:       ");
+            if (ventry.ctime) {
+                time_t vctime = ventry.ctime;
+                fprintf(f, asctime(localtime(&vctime)));
+            } else fprintf(f, "-\n");
+            fprintf(f, "Video streams: %d\n", ventry.vstreams);
+            fprintf(f, "Audio streams: %d\n", ventry.astreams);
+            fprintf(f, "Subtitles:     %d\n", ventry.subtitles);
+            fprintf(f, "Location:      ");
+            if (ventry.latitude || ventry.longitude) {
+                fprintf(f, "%f %f\n", ventry.latitude, ventry.longitude);
+            } else fprintf(f, "-\n");
+            if (ventry.imdb) fprintf(f, "IMDB:          tt%d\n", ventry.imdb);
+            fprintf(f, "\n");
+            fprintf(f, "Video:\n");
+            fprintf(f, "  Dimensions:  %dx%d\n", ventry.video.width, ventry.video.height);
+            fprintf(f, "  Codec:       %.*s", 18, ventry.video.codec);
+            if (*ventry.video.codec_tag) fprintf(f, " [%.*s]", 4, ventry.video.codec_tag);
+            fprintf(f, "\n");
+            fprintf(f, "  Bitrate:     %u kbps\n", ventry.video.bitrate);
+            fprintf(f, "  Framerate:   ");
+            if (((int)(ventry.video.framerate * 100) % 10) > 0) fprintf(f, "%.2f fps\n", ventry.video.framerate);
+            else if (((int)(ventry.video.framerate * 100) % 100) > 0) fprintf(f, "%.1f fps\n", ventry.video.framerate);
+            else fprintf(f, "%.0f fps\n", ventry.video.framerate);
+            fprintf(f, "  Interlaced:  %s\n", (ventry.video.interlaced) ? "yes" : "no");
+            if (ventry.astreams > 0) {
+                fprintf(f, "\n");
+                fprintf(f, "Audio:\n");
+                char* cdva = (char*)malloc(strlen(arch) + 2);
+                strncpy(cdva, arch, strlen(arch) - 4);
+                cdva[strlen(arch)-4] = '\0';
+                strcat(cdva, CD_ASTREAMS_EXT);
+                int afd = open(cdva, O_RDONLY);
+                free(cdva);
+                if (afd != -1) {
+                    int i;
+                    cd_stream_entry vaentry;
+                    lseek(afd, ventry.audio, SEEK_SET);
+                    for (i = 0; i < ventry.astreams; i++) {
+                        read(afd, &vaentry, sizeof(cd_stream_entry));
+                        fprintf(f, "  Stream #%d\n", i + 1);
+                        fprintf(f, "    Language:  %.*s\n", 3, (*vaentry.lang) ? vaentry.lang : "-");
+                        fprintf(f, "    Codec:     %.*s", 18, vaentry.codec);
+                        if (*vaentry.codec_tag) fprintf(f, " [%.*s]", 4, vaentry.codec_tag);
+                        fprintf(f, "\n");
+                        fprintf(f, "    Channels:  %d\n", vaentry.channels);
+                        fprintf(f, "    Bitrate:   %u kbps\n", vaentry.bitrate);
+                        fprintf(f, "    Samp.rate: %u Hz\n", vaentry.freq);
+                    }
+                    close(afd);
+                } else {
+                    ret = EXIT_FAILURE;
+                }
+            }
+            fprintf(f, "\n---\n\n");
+            cd_print_thumbnails(f, arch, entry);
             fclose(f);
         } else {
             ret = EXIT_FAILURE;
@@ -307,8 +406,8 @@ int cd_dump_image(const char* arch, cd_file_entry* entry, const char* to) {
 
 cd_dumper_info cd_dumpers[] = {
     { "\\.mp3$", cd_dump_audio },
-    { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv)$", cd_dump_video },
     { "\\.(bmp|gif|ico|jpe?g|png|psd|svg|tiff?|xcf|nef|crw|cr2)$", cd_dump_image },
+    { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv)$", cd_dump_video },
     { NULL, NULL }
 };
 
@@ -345,6 +444,7 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
                             } else {
                                 close(base);
                                 if ((entry.type == CD_REG) && entry.info) {
+                                    entry.id = (offset - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset));
                                     return dumper->dump(arch, &entry, to);
                                 } else {
                                     return EXIT_FAILURE;

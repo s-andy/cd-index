@@ -70,7 +70,7 @@ cd_offset cd_rawimage_getdata(const char* file, cd_file_entry* cdentry, void* ud
         entry.ctime = rbase->rdata->other.timestamp;
         if (rbase->rdata->other.parsed_gps.gpsparsed) {
             entry.latitude = cd_rawimage_get_coordinate(rbase->rdata->other.parsed_gps.latitude, rbase->rdata->other.parsed_gps.latref);
-            entry.longtitude = cd_rawimage_get_coordinate(rbase->rdata->other.parsed_gps.longtitude, rbase->rdata->other.parsed_gps.longref);
+            entry.longitude = cd_rawimage_get_coordinate(rbase->rdata->other.parsed_gps.longtitude, rbase->rdata->other.parsed_gps.longref);
         }
         off_t offset = lseek(images_fd, 0, SEEK_END);
         write(images_fd, &entry, sizeof(cd_picture_entry));

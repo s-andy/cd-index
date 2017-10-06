@@ -7,7 +7,7 @@
 
 #include "data.h"
 
-//#define INCLUDE_DURATION
+//#define INCLUDE_DURATION // See browse.c
 
 #define CD_MUSIC_EXT        ".cda"
 
