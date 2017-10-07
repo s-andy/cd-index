@@ -6,7 +6,7 @@ CDINDEX_FLAGS = `pkg-config --cflags MagickWand` `pkg-config --cflags libavforma
 
 CDILIBS = -lm -larchive -lraw `pkg-config --libs MagickWand` `pkg-config --libs libavformat` `pkg-config --libs libavcodec` `pkg-config --libs libavutil` `pkg-config --libs libswscale`
 
-cdindex: bin bin/cdindex bin/cdbrowse bin/cdfind
+cdindex: bin bin/cdindex bin/cdbrowse bin/cdfind bin/cdupgrade
 
 bin:
 	mkdir bin
@@ -63,6 +63,12 @@ bin/find.o: src/find.c src/find.h src/data.h src/search.h src/cdindex.h
 
 bin/search.o: src/search.c src/search.h src/data.h src/cdindex.h
 	$(GCC) -c $(CFLAGS) -o bin/search.o src/search.c
+
+bin/cdupgrade: bin/upgrade.o
+	$(GCC) -o bin/cdupgrade bin/upgrade.o
+
+bin/upgrade.o: src/upgrade.c
+	$(GCC) -c $(CFLAGS) -o bin/upgrade.o src/upgrade.c
 
 clean:
 	rm -rf bin

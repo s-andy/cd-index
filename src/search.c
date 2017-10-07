@@ -180,7 +180,7 @@ void cd_find_output(const char* fmt, cd_file_entry* entry, cd_find_path* path, c
                 type = NONE;
             } else if (type == FORMAT) {
                 if (fmt[i] == '%') putchar('%');
-                else if (fmt[i] == 'b') printf("%u", (entry->size / 512));
+                else if (fmt[i] == 'b') printf("%lu", (entry->size / 512));
                 else if (fmt[i] == 'd') {
                     int depth = 1;
                     if (parent) {
@@ -208,7 +208,7 @@ void cd_find_output(const char* fmt, cd_file_entry* entry, cd_find_path* path, c
                     char pbuf[plen+1];
                     cd_get_path(pbuf, plen, NULL, path, parent);
                     printf(pbuf);
-                } else if (fmt[i] == 'k') printf("%u", (entry->size / 1024));
+                } else if (fmt[i] == 'k') printf("%lu", (entry->size / 1024));
                 else if (fmt[i] == 'l') {
                     if (entry->type == CD_LNK) {
                         char* lpath = strdup(file->filename);
@@ -242,7 +242,7 @@ void cd_find_output(const char* fmt, cd_file_entry* entry, cd_find_path* path, c
                     char pbuf[plen+1];
                     cd_get_path(pbuf, plen, entry->name, path, parent);
                     printf(pbuf);
-                } else if (fmt[i] == 's') printf("%u", entry->size);
+                } else if (fmt[i] == 's') printf("%lu", entry->size);
                 else if (fmt[i] == 't') {
                     time_t mtime = entry->mtime;
                     printf(ctime(&mtime));

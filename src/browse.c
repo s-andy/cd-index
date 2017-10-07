@@ -166,7 +166,7 @@ int cd_list(const char* file) {
             mtime = entry.mtime;
             tm = localtime(&mtime);
             fpath = (char*)cd_get_path(path, entry.name);
-            printf(" %u %02d-%02d-%04d %02d:%02d %s",
+            printf(" %lu %02d-%02d-%04d %02d:%02d %s",
                 (entry.type != CD_DIR) ? entry.size : 0,
                 tm->tm_mon + 1, tm->tm_mday, tm->tm_year + 1900,
                 tm->tm_hour, tm->tm_min,
@@ -217,7 +217,7 @@ int cd_dump_audio(const char* arch, cd_file_entry* entry, const char* to) {
             fprintf(f, "Version:       MPEG %d.%d Layer %s\n",
                 (audio.mpeg == 0x11) ? 1 : 2, (audio.mpeg == 0x00) ? 5 : 0,
                 (audio.layer == 0x11) ? "I" : ((audio.layer == 0x10) ? "II" : "III"));
-            if (audio.bitrate) fprintf(f, "Duration:      %02u:%02u\n",
+            if (audio.bitrate) fprintf(f, "Duration:      %02lu:%02lu\n",
                 (entry->size * 8 / (audio.bitrate * 1000)) / 60,
                 (entry->size * 8 / (audio.bitrate * 1000)) % 60);
             fprintf(f, "Bitrate:       %u kbps\n", audio.bitrate);
@@ -491,7 +491,7 @@ int cd_info(const char* file) {
         printf("File:          %s\n", file);
         printf("Volume ID:     %.*s\n", 32, (*header.volume_id) ? header.volume_id : "-");
         printf("Bootable:      %s\n", (header.bootable) ? "yes" : "no");
-        printf("Size:          %d\n", header.size);
+        printf("Size:          %lu\n", header.size);
         printf("Files:         %lu\n", (stat.st_size - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)));
         printf("Created:       ");
         if (header.ctime) {

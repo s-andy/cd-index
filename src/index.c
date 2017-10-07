@@ -188,7 +188,7 @@ void cd_index(const char* path, cd_file_entry* parent, cd_offset* offset, cd_bas
                         entry->info = cd_add_symlink(linkpath, entry->size, base);
                         free(linkpath);
                     }
-                } else if ((entry->type == CD_REG) && (stat.st_size < 0xffffffff)) {
+                } else if (entry->type == CD_REG) {
 
                     // Check for extractors
                     cd_extractor_info* extractor = cd_find_extractor(file->d_name);
@@ -198,6 +198,7 @@ void cd_index(const char* path, cd_file_entry* parent, cd_offset* offset, cd_bas
                     }
 
                     // Check for plugins
+                    // FIXME Needed: (stat.st_size < 0xffffffff) ?
                     cd_plugin_info* plugin = cd_find_plugin(file->d_name);
                     if (plugin) {
                         void* arc = (plugin->init) ? plugin->init() : NULL;
