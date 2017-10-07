@@ -106,12 +106,11 @@ cd_time cd_image_get_ctime(MagickWand* wand) {
     if (!date) date = MagickGetImageProperty(wand, "exif:DateTime");
     if (date) {
         struct tm tm;
-        // FIXME tzset();
         memset(&tm, 0x00, sizeof(struct tm));
         if (strptime(date, "%Y:%m:%d %H:%M:%S", &tm)) {
             time_t result = mktime(&tm);
             if (result != (time_t)-1) {
-               ctime = result; // FIXME - timezone;
+               ctime = result; // Result not very accurate due to timezones
             }
         }
         MagickRelinquishMemory(date);

@@ -16,6 +16,22 @@
 #define CD_STREAMS_MARK_LEN 4
 #define CD_STREAMS_VERSION  0x01
 
+enum translations {
+    TRANSLATION_UNKNOWN   = 0x00,
+    TRANSLATION_ORIGINAL  = 0x01, // No translation
+    TRANSLATION_DUBBED    = 0x02, // Professional dubbed translation
+    TRANSLATION_TWO_VOICE = 0x03,
+    TRANSLATION_ONE_VOICE = 0x04
+};
+
+static const cd_search_item cd_translation_map[] = {
+    { "original", TRANSLATION_ORIGINAL },
+    { "dubbed",   TRANSLATION_DUBBED },
+    { "2-voice",  TRANSLATION_TWO_VOICE },
+    { "1-voice",  TRANSLATION_ONE_VOICE },
+    { NULL, TRANSLATION_UNKNOWN }
+};
+
 typedef struct {
     char mark[3];           // "CDV"
     cd_byte version;        // 0x01
@@ -52,6 +68,7 @@ typedef struct {
 typedef struct {
     cd_offset offset;
     char lang[3];
+    cd_byte translation;
     char codec[18];
     char codec_tag[4];
     cd_byte channels;

@@ -233,6 +233,7 @@ cd_offset cd_video_getdata(const char* file, cd_file_entry* cdentry, void* udata
     av_register_all();
     if (avformat_open_input(&format, file, NULL, NULL) == 0) {
         avformat_find_stream_info(format, NULL);
+        off_t aoffset;
         cd_video_entry entry;
         memset(&entry, 0x00, sizeof(cd_video_entry));
         entry.seconds = (format->duration != AV_NOPTS_VALUE) ? format->duration / AV_TIME_BASE : 0;
@@ -276,11 +277,12 @@ cd_offset cd_video_getdata(const char* file, cd_file_entry* cdentry, void* udata
                 sentry.bitrate = format->streams[i]->codecpar->bit_rate / 1000;
                 AVDictionaryEntry* lang = av_dict_get(format->streams[i]->metadata, "language", NULL, 0);
                 if (lang) strncpy(sentry.lang, lang->value, 3);
+                if (format->streams[i]->disposition & AV_DISPOSITION_ORIGINAL) sentry.translation = TRANSLATION_ORIGINAL;
+                else if (format->streams[i]->disposition & AV_DISPOSITION_DUB) sentry.translation = TRANSLATION_DUBBED;
                 entry.astreams++;
-                if (entry.audio == 0) {
-                    entry.audio = lseek(((cd_video_base*)udata)->vafd, 0, SEEK_END);
-                    write(((cd_video_base*)udata)->vafd, &sentry, sizeof(cd_stream_entry));
-                }
+                aoffset = lseek(((cd_video_base*)udata)->vafd, 0, SEEK_END);
+                write(((cd_video_base*)udata)->vafd, &sentry, sizeof(cd_stream_entry));
+                if (entry.audio == 0) entry.audio = aoffset;
             } else if (format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
                 entry.subtitles++;
             }

@@ -85,11 +85,6 @@ enum langs {
     LANG_XH = 0xB4, LANG_YI = 0xB5, LANG_YO = 0xB6, LANG_ZA = 0xB7, LANG_ZH = 0xB8, LANG_ZU = 0xB9
 };
 
-typedef struct {
-    const char* name;
-    cd_byte code;
-} cd_search_item;
-
 static const cd_search_item cd_genre_map[] = {
     { "Blues",            BLUES             }, { "Classic Rock",      CLASSIC_ROCK      },
     { "Country",          COUNTRY           }, { "Dance",             DANCE             },

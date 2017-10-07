@@ -41,6 +41,11 @@ typedef uint32_t cd_time;
 typedef uint32_t cd_dword;
 
 typedef struct {
+    const char* name;
+    cd_byte code;
+} cd_search_item;
+
+typedef struct {
     char mark[3];           // "CDI"
     cd_byte version;        // 0x01
 } packed(cd_index_mark);

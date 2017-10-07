@@ -59,7 +59,7 @@ cd_path_entry* cd_free_entries(cd_path_entry* path, cd_offset id, int base) {
         free(entry);
         entry = prev;
     }
-    if ((!entry) && (id != 0)) {    // Full clean done while not requested
+    if ((!entry) && (id != 0)) { // Full clean done while not requested
         cd_offset i;
         cd_file_entry data;
         for (i = id; i;) {
@@ -112,6 +112,14 @@ const char* cd_get_lang(cd_byte lcode) {
     const cd_search_item* lang;
     for (lang = cd_lang_map; lang->name; lang++) {
         if (lang->code == lcode) return lang->name;
+    }
+    return "?";
+}
+
+const char* cd_get_translation(cd_byte tcode) {
+    const cd_search_item* translation;
+    for (translation = cd_translation_map; translation->name; translation++) {
+        if (translation->code == tcode) return translation->name;
     }
     return "?";
 }
@@ -377,7 +385,9 @@ int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
                     lseek(afd, ventry.audio, SEEK_SET);
                     for (i = 0; i < ventry.astreams; i++) {
                         read(afd, &vaentry, sizeof(cd_stream_entry));
-                        fprintf(f, "  Stream #%d\n", i + 1);
+                        fprintf(f, "  Stream #%d", i + 1);
+                        if (vaentry.translation != TRANSLATION_UNKNOWN) fprintf(f, "(%s)", cd_get_translation(vaentry.translation));
+                        fprintf(f, "\n");
                         fprintf(f, "    Language:  %.*s\n", 3, (*vaentry.lang) ? vaentry.lang : "-");
                         fprintf(f, "    Codec:     %.*s", 18, vaentry.codec);
                         if (*vaentry.codec_tag) fprintf(f, " [%.*s]", 4, vaentry.codec_tag);
@@ -470,6 +480,41 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
     return EXIT_FAILURE;
 }
 
+int cd_info(const char* file) {
+    int base = open(file, O_RDONLY);
+    if (base != -1) {
+        time_t time;
+        struct stat stat;
+        cd_iso_header header;
+        fstat(base, &stat);
+        read(base, (void*)&header, sizeof(cd_iso_header));
+        printf("File:          %s\n", file);
+        printf("Volume ID:     %.*s\n", 32, (*header.volume_id) ? header.volume_id : "-");
+        printf("Bootable:      %s\n", (header.bootable) ? "yes" : "no");
+        printf("Size:          %d\n", header.size);
+        printf("Files:         %lu\n", (stat.st_size - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)));
+        printf("Created:       ");
+        if (header.ctime) {
+            time = header.ctime;
+            printf(asctime(localtime(&time)));
+        } else printf("-\n");
+        printf("Modified:      ");
+        if (header.mtime) {
+            time = header.mtime;
+            printf(asctime(localtime(&time)));
+        } else printf("-\n");
+        printf("\n");
+        printf("Publisher:     %.*s\n", 128, (*header.publisher) ? header.publisher : "-");
+        printf("Preparer:      %.*s\n", 128, (*header.preparer) ? header.preparer : "-");
+        printf("Generator:     %.*s\n", 128, (*header.generator) ? header.generator : "-");
+        printf("\n---\n\n");
+        close(base);
+    } else {
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char* argv[]) {
     if (argc > 1) {
         if (!strcmp(argv[1], "list")) {
@@ -479,6 +524,10 @@ int main(int argc, char* argv[]) {
         } else if (!strcmp(argv[1], "copyout")) {
             if (argc == 5) {
                 return cd_copyout(argv[2], argv[3], argv[4]);
+            }
+        } else if (!strcmp(argv[1], "info")) {
+            if (argc == 3) {
+                return cd_info(argv[2]);
             }
         } else {
             return EXIT_FAILURE;
