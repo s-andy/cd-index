@@ -345,11 +345,23 @@ int cd_search(const char* dir, cd_find_req* req) {
         for (i = 0; i < flen; i++) {
             int fd = open(files[i]->filename, O_RDONLY);
             if (fd != -1) {
-                cd_offset offset = cd_find_offset(fd, req->path);
-                if (offset) {
-                    cd_find_in(fd, offset, NULL, files[i], req);
-                } // skip silently
-                close(fd);
+                cd_index_mark mark;
+                read(fd, &mark, sizeof(cd_index_mark));
+                if (memcmp(mark.mark, CD_INDEX_MARK, CD_INDEX_MARK_LEN) != 0) {
+                    printf("cdfind: warning: invalid cd index `%s'\n", files[i]->filename);
+                } else if (mark.version != CD_INDEX_VERSION) {
+                    if (mark.version < CD_INDEX_VERSION) {
+                        printf("cdfind: warning: outdated cd index `%s' -- run `cdupgrade \"%s\"'\n", files[i]->filename, files[i]->filename);
+                    } else {
+                        printf("cdfind: warning: cd index version is not supported -- update cdfind\n");
+                    }
+                } else {
+                    cd_offset offset = cd_find_offset(fd, req->path);
+                    if (offset) {
+                        cd_find_in(fd, offset, NULL, files[i], req);
+                    } // skip silently
+                    close(fd);
+                }
             } else {
                 printf("cdfind: warning: could not open cd index `%s'\n", files[i]->filename);
             }

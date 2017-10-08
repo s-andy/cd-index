@@ -124,78 +124,101 @@ const char* cd_get_translation(cd_byte tcode) {
     return "?";
 }
 
+cd_byte cd_get_index_version(int fd) {
+    cd_index_mark mark;
+    lseek(fd, 0, SEEK_SET);
+    if ((read(fd, &mark, sizeof(cd_index_mark)) == sizeof(cd_index_mark)) &&
+        (memcmp(mark.mark, CD_INDEX_MARK, CD_INDEX_MARK_LEN) == 0)) {
+        return mark.version;
+    }
+    return 0x00;
+}
+
 int cd_list(const char* file) {
+    int ret = EXIT_SUCCESS;
     int base = open(file, O_RDONLY);
     if (base != -1) {
-        cd_offset i;
-        time_t mtime;
-        struct tm* tm;
-        struct stat stat;
-        char* fpath;
-        struct group* grp;
-        struct passwd* pwd;
-        fstat(base, &stat);
-        cd_file_entry entry;
-        cd_path_entry* path = NULL;
-        fpath = strdup(file);
-        fpath[strlen(file)-1] = 'l';
-        int slinks = open(fpath, O_RDONLY);
-        free(fpath);
-        for (i = 0; i < (stat.st_size - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)); i++) {
-            lseek(base, sizeof(cd_iso_header) + i * (sizeof(cd_file_entry) - sizeof(cd_offset)), SEEK_SET);
-            read(base, (void*)&entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset));
-            if ((path && (entry.parent != path->id)) || (!path && entry.parent))
-                path = cd_free_entries(path, entry.parent, base);
-            printf("%c%c%c%c%c%c%c%c%c%c 1",
-                (entry.type <= CD_ARC) ? 'd' : (entry.type == CD_LNK) ? 'l' : '-',
-                (entry.mode & S_IRUSR) ? 'r' : '-',
-                (entry.mode & S_IWUSR) ? 'w' : '-',
-                (entry.mode & S_IXUSR) ? 'x' : '-',
-                (entry.mode & S_IRGRP) ? 'r' : '-',
-                (entry.mode & S_IWGRP) ? 'w' : '-',
-                (entry.mode & S_IXGRP) ? 'x' : '-',
-                (entry.mode & S_IROTH) ? 'r' : '-',
-                (entry.mode & S_IWOTH) ? 'w' : '-',
-                (entry.mode & S_IXOTH) ? 'x' : '-');
-            pwd = getpwuid(entry.uid);
-            if (pwd) printf(" %s", pwd->pw_name);
-            else printf(" %d", entry.uid);
-            grp = getgrgid(entry.gid);
-            if (grp) printf(" %s", grp->gr_name);
-            else printf(" %d", entry.gid);
-            mtime = entry.mtime;
-            tm = localtime(&mtime);
-            fpath = (char*)cd_get_path(path, entry.name);
-            printf(" %lu %02d-%02d-%04d %02d:%02d %s",
-                (entry.type != CD_DIR) ? entry.size : 0,
-                tm->tm_mon + 1, tm->tm_mday, tm->tm_year + 1900,
-                tm->tm_hour, tm->tm_min,
-                fpath);
+        cd_byte cdiver = cd_get_index_version(base);
+        if (cdiver == CD_INDEX_VERSION) {
+            cd_offset i;
+            time_t mtime;
+            struct tm* tm;
+            struct stat stat;
+            char* fpath;
+            struct group* grp;
+            struct passwd* pwd;
+            fstat(base, &stat);
+            cd_file_entry entry;
+            cd_path_entry* path = NULL;
+            fpath = strdup(file);
+            fpath[strlen(file)-1] = 'l';
+            int slinks = open(fpath, O_RDONLY);
             free(fpath);
-            if (entry.type == CD_LNK) {
-                if ((slinks != -1) && entry.size) {
-                    lseek(slinks, entry.info, SEEK_SET);
-                    fpath = (char*)malloc(entry.size + 1);
-                    read(slinks, fpath, entry.size);
-                    fpath[entry.size] = '\0';
-                    printf(" -> %s", fpath);
-                    free(fpath);
-                } else {
-                    printf(" -> ");
+            for (i = 0; i < (stat.st_size - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)); i++) {
+                lseek(base, sizeof(cd_iso_header) + i * (sizeof(cd_file_entry) - sizeof(cd_offset)), SEEK_SET);
+                read(base, (void*)&entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset));
+                if ((path && (entry.parent != path->id)) || (!path && entry.parent))
+                    path = cd_free_entries(path, entry.parent, base);
+                printf("%c%c%c%c%c%c%c%c%c%c 1",
+                    (entry.type <= CD_ARC) ? 'd' : (entry.type == CD_LNK) ? 'l' : '-',
+                    (entry.mode & S_IRUSR) ? 'r' : '-',
+                    (entry.mode & S_IWUSR) ? 'w' : '-',
+                    (entry.mode & S_IXUSR) ? 'x' : '-',
+                    (entry.mode & S_IRGRP) ? 'r' : '-',
+                    (entry.mode & S_IWGRP) ? 'w' : '-',
+                    (entry.mode & S_IXGRP) ? 'x' : '-',
+                    (entry.mode & S_IROTH) ? 'r' : '-',
+                    (entry.mode & S_IWOTH) ? 'w' : '-',
+                    (entry.mode & S_IXOTH) ? 'x' : '-');
+                pwd = getpwuid(entry.uid);
+                if (pwd) printf(" %s", pwd->pw_name);
+                else printf(" %d", entry.uid);
+                grp = getgrgid(entry.gid);
+                if (grp) printf(" %s", grp->gr_name);
+                else printf(" %d", entry.gid);
+                mtime = entry.mtime;
+                tm = localtime(&mtime);
+                fpath = (char*)cd_get_path(path, entry.name);
+                printf(" %lu %02d-%02d-%04d %02d:%02d %s",
+                    (entry.type != CD_DIR) ? entry.size : 0,
+                    tm->tm_mon + 1, tm->tm_mday, tm->tm_year + 1900,
+                    tm->tm_hour, tm->tm_min,
+                    fpath);
+                free(fpath);
+                if (entry.type == CD_LNK) {
+                    if ((slinks != -1) && entry.size) {
+                        lseek(slinks, entry.info, SEEK_SET);
+                        fpath = (char*)malloc(entry.size + 1);
+                        read(slinks, fpath, entry.size);
+                        fpath[entry.size] = '\0';
+                        printf(" -> %s", fpath);
+                        free(fpath);
+                    } else {
+                        printf(" -> ");
+                    }
                 }
+                printf("\n");
+                DEBUG_OUTPUT(DEBUG_DEBUG, "%3u: p:%3u <- n:%3u -> c:%3u %s\n",
+                    i + 1, entry.parent, entry.next, entry.child, entry.name);
+                if ((entry.type <= CD_ARC) && (entry.child != 0))
+                    path = cd_add_entry(path, &entry, i + 1, base);
             }
-            printf("\n");
-            DEBUG_OUTPUT(DEBUG_DEBUG, "%3u: p:%3u <- n:%3u -> c:%3u %s\n",
-                i + 1, entry.parent, entry.next, entry.child, entry.name);
-            if ((entry.type <= CD_ARC) && (entry.child != 0))
-                path = cd_add_entry(path, &entry, i + 1, base);
+            cd_free_entries(path, 0, base);
+        } else {
+            if (cdiver == 0x00) {
+                printf("Invalid CD index!\n");
+            } else if (cdiver < CD_INDEX_VERSION) {
+                printf("Outdated CD index -- use cdupgrade to upgrade it!\n");
+            } else if (cdiver > CD_INDEX_VERSION) {
+                printf("CD index version is not supported -- outdated cdbrowse?\n");
+            }
+            ret = EXIT_FAILURE;
         }
-        cd_free_entries(path, 0, base);
         close(base);
     } else {
-        return EXIT_FAILURE;
+        ret = EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 int cd_dump_audio(const char* arch, cd_file_entry* entry, const char* to) {
@@ -431,7 +454,7 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
         free(regex);
         if (result == 0) {
             int base = open(arch, O_RDONLY);
-            if (base != -1) {
+            if ((base != -1) && (cd_get_index_version(base) == CD_INDEX_VERSION)) {
                 size_t length;
                 const char* next;
                 const char* element;
@@ -473,6 +496,7 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
                 }
                 close(base);
             } else {
+                if (base != -1) close(base);
                 return EXIT_FAILURE;
             }
         }
@@ -481,38 +505,51 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
 }
 
 int cd_info(const char* file) {
+    int ret = EXIT_SUCCESS;
     int base = open(file, O_RDONLY);
     if (base != -1) {
-        time_t time;
-        struct stat stat;
-        cd_iso_header header;
-        fstat(base, &stat);
-        read(base, (void*)&header, sizeof(cd_iso_header));
-        printf("File:          %s\n", file);
-        printf("Volume ID:     %.*s\n", 32, (*header.volume_id) ? header.volume_id : "-");
-        printf("Bootable:      %s\n", (header.bootable) ? "yes" : "no");
-        printf("Size:          %lu\n", header.size);
-        printf("Files:         %lu\n", (stat.st_size - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)));
-        printf("Created:       ");
-        if (header.ctime) {
-            time = header.ctime;
-            printf(asctime(localtime(&time)));
-        } else printf("-\n");
-        printf("Modified:      ");
-        if (header.mtime) {
-            time = header.mtime;
-            printf(asctime(localtime(&time)));
-        } else printf("-\n");
-        printf("\n");
-        printf("Publisher:     %.*s\n", 128, (*header.publisher) ? header.publisher : "-");
-        printf("Preparer:      %.*s\n", 128, (*header.preparer) ? header.preparer : "-");
-        printf("Generator:     %.*s\n", 128, (*header.generator) ? header.generator : "-");
-        printf("\n---\n\n");
+        cd_byte cdiver = cd_get_index_version(base);
+        if (cdiver == CD_INDEX_VERSION) {
+            time_t time;
+            struct stat stat;
+            cd_iso_header header;
+            fstat(base, &stat);
+            read(base, (void*)&header, sizeof(cd_iso_header));
+            printf("File:          %s\n", file);
+            printf("Volume ID:     %.*s\n", 32, (*header.volume_id) ? header.volume_id : "-");
+            printf("Bootable:      %s\n", (header.bootable) ? "yes" : "no");
+            printf("Size:          %lu\n", header.size);
+            printf("Files:         %lu\n", (stat.st_size - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)));
+            printf("Created:       ");
+            if (header.ctime) {
+                time = header.ctime;
+                printf(asctime(localtime(&time)));
+            } else printf("-\n");
+            printf("Modified:      ");
+            if (header.mtime) {
+                time = header.mtime;
+                printf(asctime(localtime(&time)));
+            } else printf("-\n");
+            printf("\n");
+            printf("Publisher:     %.*s\n", 128, (*header.publisher) ? header.publisher : "-");
+            printf("Preparer:      %.*s\n", 128, (*header.preparer) ? header.preparer : "-");
+            printf("Generator:     %.*s\n", 128, (*header.generator) ? header.generator : "-");
+            printf("\n---\n\n");
+        } else {
+            if (cdiver == 0x00) {
+                fprintf(stderr, "Invalid CD index!\n");
+            } else if (cdiver < CD_INDEX_VERSION) {
+                fprintf(stderr, "Outdated CD index -- use cdupgrade to upgrade it!\n");
+            } else if (cdiver > CD_INDEX_VERSION) {
+                fprintf(stderr, "CD index version is not supported -- outdated cdbrowse?\n");
+            }
+            ret = EXIT_FAILURE;
+        }
         close(base);
     } else {
-        return EXIT_FAILURE;
+        ret = EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 int main(int argc, char* argv[]) {
