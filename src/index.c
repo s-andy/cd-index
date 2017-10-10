@@ -125,7 +125,7 @@ cd_file_entry* cd_create_entry(const char* name, struct stat64* stat, cd_file_en
     entry->mtime = stat->st_mtime;
     entry->uid   = stat->st_uid;
     entry->gid   = stat->st_gid;
-    entry->size  = (stat->st_size < 0xffffffff) ? stat->st_size : 0xffffffff;
+    entry->size  = stat->st_size;
 
     entry->info = 0;
 
@@ -198,7 +198,6 @@ void cd_index(const char* path, cd_file_entry* parent, cd_offset* offset, cd_bas
                     }
 
                     // Check for plugins
-                    // FIXME Needed: (stat.st_size < 0xffffffff) ?
                     cd_plugin_info* plugin = cd_find_plugin(file->d_name);
                     if (plugin) {
                         void* arc = (plugin->init) ? plugin->init() : NULL;
@@ -296,7 +295,7 @@ void cd_header(const char* device, cd_base* base) {
                 } else if ((unsigned char)vd->type[0] == ISO_VD_PRIMARY) {
                     strncpy(header.volume_id, pd->volume_id, 32);
                     cd_fix_string(header.volume_id, 32);
-                    header.size = *(unsigned long*)pd->volume_space_size;
+                    header.size = (cd_size)(*(unsigned*)pd->volume_space_size) * 2048;
                     strncpy(header.publisher, pd->publisher_id, 128);
                     cd_fix_string(header.publisher, 128);
                     strncpy(header.preparer, pd->preparer_id, 128);

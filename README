@@ -107,7 +107,7 @@ Workaround: none.
 
 5. TODO
 
-5.1. Put more infor about the media into header
+5.1. Put more info about the media into header
 
 It would be good if cdindex would detect more info about
 the media. For example - is cd multisession, does it have

@@ -477,7 +477,7 @@ int cd_copyout(const char* arch, const char* file, const char* to) {
                             } else {
                                 close(base);
                                 if ((entry.type == CD_REG) && entry.info) {
-                                    entry.id = (offset - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset));
+                                    entry.id = (offset - sizeof(cd_iso_header)) / (sizeof(cd_file_entry) - sizeof(cd_offset)) + 1;
                                     return dumper->dump(arch, &entry, to);
                                 } else {
                                     return EXIT_FAILURE;
@@ -514,6 +514,7 @@ int cd_info(const char* file) {
             struct stat stat;
             cd_iso_header header;
             fstat(base, &stat);
+            lseek(base, 0, SEEK_SET);
             read(base, (void*)&header, sizeof(cd_iso_header));
             printf("File:          %s\n", file);
             printf("Volume ID:     %.*s\n", 32, (*header.volume_id) ? header.volume_id : "-");

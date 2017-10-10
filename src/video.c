@@ -30,24 +30,34 @@ typedef struct {
     int skip_thumbs;
 } cd_video_base;
 
+typedef struct {
+    const char* fmt;
+    int utc;
+} cd_time_format;
+
+static const cd_time_format cd_video_formats[] = {
+    { "%Y-%m-%dT%H:%M:%S", 1 },
+    { "%Y%m%dT%H%M%S", 1 },
+    { "%Y-%m-%d %H:%M:%S", 0 }, // Not ISO 8601, but happens
+    { "%Y-%m-%d", 1 },
+    { "%Y%m%d", 1 },
+    { NULL, 0 }
+};
+
 time_t cd_video_parse_time(const char* time) {
     struct tm tm;
-    char **format;
-    char* formats[] = {
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y%m%dT%H%M%S",
-        "%Y-%m-%d",
-        "%Y%m%d",
-        "%Y-%m-%d %H:%M:%S", // Not ISO 8601, but happens
-        NULL
-    };
-    tzset();
+    const cd_time_format* format;
     memset(&tm, 0x00, sizeof(struct tm));
-    for (format = formats; *format; format++) {
-        if (strptime(time, *format, &tm)) {
+    for (format = cd_video_formats; format->fmt; format++) {
+        if (strptime(time, format->fmt, &tm)) {
             time_t result = mktime(&tm);
             if (result != (time_t)-1) {
-                return result - timezone;
+                if (format->utc) {
+                    tzset();
+                    return result - timezone;
+                } else {
+                    return result;
+                }
             }
             break;
         }
@@ -58,15 +68,17 @@ time_t cd_video_parse_time(const char* time) {
 int cd_get_codec_tag(char* buf, unsigned int codec_tag) {
     register int i;
     char tchar;
+    char ibuf[4];
     for (i = 0; i < 4; i++) {
         tchar = codec_tag & 0xFF;
         if (isprint(tchar)) {
-            buf[i] = tchar;
+            ibuf[i] = tchar;
         } else {
             return 0;
         }
         codec_tag >>= 8;
     }
+    memcpy(buf, ibuf, 4);
     return 1;
 }
 
@@ -102,7 +114,7 @@ int cd_video_thumbnail_init(AVCodecContext** jpegCtx, AVStream* stream, AVFrame*
 }
 
 AVFrame* cd_video_resize_frame(AVCodecContext* srcCtx, AVCodecContext* dstCtx, AVFrame* frame) {
-    struct SwsContext* swsCtx = sws_getCachedContext(NULL, srcCtx->width, srcCtx->height, srcCtx->pix_fmt, dstCtx->width, dstCtx->height, srcCtx->pix_fmt, SWS_LANCZOS, NULL, NULL, NULL);
+    struct SwsContext* swsCtx = sws_getCachedContext(NULL, srcCtx->width, srcCtx->height, srcCtx->pix_fmt, dstCtx->width, dstCtx->height, AV_PIX_FMT_YUV420P, SWS_LANCZOS, NULL, NULL, NULL);
     AVFrame* newf = av_frame_alloc();
     int bufsize = av_image_get_buffer_size(srcCtx->pix_fmt, dstCtx->width, dstCtx->height, 1);
     uint8_t* buf = (uint8_t*)av_malloc(bufsize * sizeof(uint8_t));
@@ -140,7 +152,7 @@ void cd_video_generate_thumbnails(AVFormatContext* format, int vindex, cd_video_
                     int seek = start + (rand() % augment) + augment * i;
                     if (seek > 0) {
                         if (av_seek_frame(format, vindex, seek / av_q2d(format->streams[vindex]->time_base), 0) < 0) {
-                            printf("[warning] seeking to %d:%02d failed\n", (int)floor(seek / 60), seek % 60);
+                            printf("[warning] seeking to %d:%02d failed (#%u)\n", (int)floor(seek / 60), seek % 60, id);
                             break;
                         } else {
                             avcodec_flush_buffers(codecCtx);

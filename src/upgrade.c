@@ -82,6 +82,7 @@ int cd_upgrade_v1_to_v2(const char* v1, const char* v2) {
             int invsizes = 0, files = 0, images = 0, rimages = 0, videos = 0;
             ssize_t bytes = read(fd1, (void*)&header1, sizeof(cd_iso_header_v1));
             memcpy(&header2, &header1, (void*)&header1.size - (void*)&header1);
+            header2.mark.version = 0x02;
             header2.size = (cd_size)header1.size * 2048;
             memcpy(&header2.publisher, &header1.publisher, sizeof(cd_iso_header_v1) - ((void*)&header1.publisher - (void*)&header1));
             write(fd2, &header2, sizeof(cd_iso_header));

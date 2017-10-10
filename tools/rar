@@ -11,10 +11,8 @@ sub rar_list {
     my $rarfile = shift;
 
     if (open(PIPE, "unrar v -c- -y $rarfile |")) {
-        my $line = 1;
-        my $name = undef;
         my $parse = false;
-        my ($size, $mday, $mon, $year, $hour, $min, $dir);
+        my ($size, $mday, $mon, $year, $hour, $min, $dir, $name);
         while (<PIPE>) {
             if (/^\-{10,}/) {
                 if (!$parse) {
@@ -25,33 +23,21 @@ sub rar_list {
                 }
             }
             if ($parse) {
-                if ($line % 2) {
-                    if (/^ (.+)\n$/) {
-                        $name = $1;
-                    } else {
-                        $name = undef;
-                        next;
-                    }
-                } else {
-                    if ($name) {
-                        if (/^ +(\d+) +\d+ +\d+% ([0-9]{2})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}) +[V.]([D.])[R.][H.][S.][A.][C.] +/) {
-                            $size = $1;
-                            $mday = $2;
-                            $mon = $3;
-                            $year = $4;
-                            $hour = $5;
-                            $min = $6;
-                            $dir = $7;
-                            $year += ($year > 70) ? 1900 : 2000;
-                            printf("%s 0 0 %s %04d-%02d-%02d %02d:%02d %s\n",
-                                ($dir eq 'D') ? 'drwxr-xr-x' : '-rw-r--r--',
-                                $size,
-                                $year, $mon, $mday, $hour, $min,
-                                $name);
-                        }
-                    }
+                if (/^ +[I.][C.][A.]([D.])[S.][H.][R.] +(\d+) +\d+ +\d+% +([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}) +[A-F0-9]{8} +(.+)\n/) {
+                    $dir = $1;
+                    $size = $2;
+                    $year = $3;
+                    $mon = $4;
+                    $mday = $5;
+                    $hour = $6;
+                    $min = $7;
+                    $name = $8;
+                    printf("%s 0 0 %s %04d-%02d-%02d %02d:%02d %s\n",
+                        ($dir eq 'D') ? 'drwxr-xr-x' : '-rw-r--r--',
+                        $size,
+                        $year, $mon, $mday, $hour, $min,
+                        $name);
                 }
-                $line++;
             }
         }
         close(PIPE);
