@@ -23,48 +23,6 @@
 #define false   0
 #define true    1
 
-cd_file_entry* cd_find_parent(const char* path, cd_file_entry* parent, cd_base* base) {
-    char* next = strchr(path, '/');
-    if (!next || !*(next+1)) return parent;
-    off_t offset;
-    const char* dir;
-    cd_offset index = parent->id + 1;
-    cd_file_entry* entry = (cd_file_entry*)malloc(sizeof(cd_file_entry));
-    for (dir = path; next && *(next+1);) {
-        if (index) {
-            for (;;) {
-                offset = sizeof(cd_iso_header) + (index - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
-                if (lseek(base->base_fd, offset, SEEK_SET) == offset) {
-                    if (read(base->base_fd, (void*)entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset)) > 0) {
-                        entry->id = index;
-                        if (!strncmp(entry->name, dir, next - dir) && !entry->name[next-dir]) {
-                            index = entry->child;
-                            break;
-                        } else if (entry->next) {
-                            index = entry->next;
-                        } else {
-                            free(entry);
-                            return NULL;
-                        }
-                    } else {
-                        free(entry);
-                        return NULL;
-                    }
-                } else {
-                    free(entry);
-                    return NULL;
-                }
-            }
-        } else {
-            free(entry);
-            return NULL;
-        }
-        dir = next + 1;
-        next = strchr(dir, '/');
-    }
-    return entry;
-}
-
 void cd_fix_prev(cd_file_entry* parent, cd_file_entry* next, cd_base* base) {
     if (parent->child != next->id) {
         off_t offset;
@@ -119,7 +77,7 @@ cd_file_entry* cd_create_entry(const char* name, struct stat64* stat, cd_file_en
     else entry->type = CD_DIR;
 
     memset(entry->name, '\0', CD_NAME_MAX);
-    strcpy(entry->name, name);
+    strncpy(entry->name, name, CD_NAME_MAX);
 
     entry->mode  = (unsigned short)stat->st_mode;
     entry->mtime = stat->st_mtime;
@@ -145,6 +103,109 @@ void cd_save_entry(cd_file_entry* entry, cd_base* base) {
     } else {
         printf("[error] seek failed: \"%s\" (%u)\n", entry->name, entry->id);
     }
+}
+
+void cd_update_entry(struct stat64* stat, cd_file_entry* entry, cd_base* base) {
+    entry->mode  = (unsigned short)stat->st_mode;
+    entry->mtime = stat->st_mtime;
+    entry->uid   = stat->st_uid;
+    entry->gid   = stat->st_gid;
+    entry->size  = stat->st_size;
+
+    cd_save_entry(entry, base);
+}
+
+cd_file_entry* cd_autocreate_path(const char* path, cd_file_entry* entry, cd_file_entry* parent, cd_offset* offset) {
+    char* end = strchr(path, '/');
+    if (end && *(end+1)) {
+        if (end == path) {
+            printf("[fixme] path starts with '/': %s\n", path);
+            return NULL;
+        }
+        char name[CD_NAME_MAX];
+        memcpy(name, path, end - path);
+        name[end-path] = '\0';
+        end = strchr(end + 1, '/');
+        if (!end || !*(end+1)) {
+            entry->id = (*offset)++;
+            entry->type = CD_DIR;
+            memset(entry->name, '\0', CD_NAME_MAX);
+            strncpy(entry->name, name, CD_NAME_MAX);
+            entry->mode  = (unsigned short)S_IFDIR|S_IRUSR|S_IXUSR|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH;
+            entry->mtime = 0;
+            entry->uid   = 0;
+            entry->gid   = 0;
+            entry->size  = 0;
+            entry->info  = 0;
+            entry->parent = parent->id;
+            if (parent->child == 0) parent->child = entry->id;
+            entry->child = 0;
+            entry->next  = 0;
+            printf("[warning] automatically created directory %s\n", name);
+            return entry;
+        } else {
+            printf("[fixme] autocreate of multiple dirs is not supported\n");
+        }
+    }
+    return NULL;
+}
+
+cd_file_entry* cd_find_parent(const char* path, cd_file_entry* parent, cd_offset* eoff, cd_base* base) {
+    char* next = strchr(path, '/');
+    if (!next || !*(next+1)) return parent;
+    off_t offset;
+    const char* dir;
+    cd_offset index = parent->id + 1;
+    cd_file_entry* entry = (cd_file_entry*)malloc(sizeof(cd_file_entry));
+    for (dir = path; next && *(next+1);) {
+        if (index) {
+            for (;;) {
+                offset = sizeof(cd_iso_header) + (index - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
+                if (lseek(base->base_fd, offset, SEEK_SET) == offset) {
+                    if (read(base->base_fd, (void*)entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset)) > 0) {
+                        entry->id = index;
+                        if (!strncmp(entry->name, dir, next - dir) && !entry->name[next-dir]) {
+                            index = entry->child;
+                            break;
+                        } else if (entry->next) {
+                            index = entry->next;
+                            continue;
+                        }
+                    }
+                    if (cd_autocreate_path(dir, entry, parent, eoff)) {
+                        cd_fix_prev(parent, entry, base);
+                        return entry;
+                    } else {
+                        free(entry);
+                        return NULL;
+                    }
+                } else {
+                    free(entry);
+                    return NULL;
+                }
+            }
+        } else {
+            free(entry);
+            return NULL;
+        }
+        dir = next + 1;
+        next = strchr(dir, '/');
+    }
+    return entry;
+}
+
+cd_offset cd_find_entry(cd_file_entry* parent, const char* name, cd_file_entry* entry, cd_base* base) {
+    off_t offset;
+    cd_offset index;
+    for (index = parent->child; index;) {
+        offset = sizeof(cd_iso_header) + (index - 1) * (sizeof(cd_file_entry) - sizeof(cd_offset));
+        if ((lseek(base->base_fd, offset, SEEK_SET) == offset) &&
+            (read(base->base_fd, (void*)entry + sizeof(cd_offset), sizeof(cd_file_entry) - sizeof(cd_offset)) > 0)) {
+            if (!strncmp(entry->name, name, CD_NAME_MAX)) return entry->id = index;
+            else index = entry->next;
+        } else break;
+    }
+    return 0;
 }
 
 off_t cd_add_symlink(const char* path, unsigned long size, cd_base* base) {
@@ -214,18 +275,23 @@ void cd_index(const char* path, cd_file_entry* parent, cd_offset* offset, cd_bas
                                 printf("[plugin] indexing \"%s\" using %s...\n", file->d_name, plugin->name);
                                 while (plugin->read(handle, &path, &symlink, &stat) != -1) {
                                     psave = false;
-                                    upper = cd_find_parent(path, entry, base);
+                                    upper = cd_find_parent(path, entry, offset, base);
                                     if (upper) {
                                         if ((upper != entry) && (upper->child == 0)) psave = true;
                                         cd_copy_filename(path, name);
-                                        cd_create_entry(name, &stat, &archive, upper, offset);
-                                        if ((archive.type == CD_LNK) && symlink) {
-                                            archive.size = strlen(symlink);
-                                            if (archive.size) archive.info = cd_add_symlink(symlink, archive.size, base);
+                                        if (S_ISDIR(stat.st_mode) && cd_find_entry(upper, name, &archive, base)) {
+                                            // We created this dir automatically before, now update it
+                                            cd_update_entry(&stat, &archive, base);
+                                        } else {
+                                            cd_create_entry(name, &stat, &archive, upper, offset);
+                                            if ((archive.type == CD_LNK) && symlink) {
+                                                archive.size = strlen(symlink);
+                                                if (archive.size) archive.info = cd_add_symlink(symlink, archive.size, base);
+                                            }
+                                            cd_save_entry(&archive, base);
+                                            if (psave) cd_save_entry(upper, base);
+                                            cd_fix_prev(upper, &archive, base);
                                         }
-                                        cd_save_entry(&archive, base);
-                                        if (psave) cd_save_entry(upper, base);
-                                        cd_fix_prev(upper, &archive, base);
                                         if (upper != entry) free(upper);
                                     } else {
                                         errors = true;

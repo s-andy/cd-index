@@ -21,6 +21,8 @@
 #include "video.h"
 #include "cdindex.h"
 
+#define CD_READ_ATTEMPTS    10
+
 typedef struct {
     const char* dir;
     const char* vpath;
@@ -140,7 +142,7 @@ void cd_video_generate_thumbnails(AVFormatContext* format, int vindex, cd_video_
         AVCodecContext* codecCtx = avcodec_alloc_context3(decoder);
         avcodec_parameters_to_context(codecCtx, format->streams[vindex]->codecpar);
         if (avcodec_open2(codecCtx, decoder, NULL) == 0) {
-            int i;
+            int i, tid = 1;
             srand(time(NULL));
             AVPacket packet;
             AVPacket jpegPac;
@@ -162,14 +164,15 @@ void cd_video_generate_thumbnails(AVFormatContext* format, int vindex, cd_video_
                 }
                 while (av_read_frame(format, &packet) == 0) {
                     if (packet.stream_index == vindex) {
-                        int error;
+                        int error, attempts = 0;
                         AVFrame* frame = av_frame_alloc();
                         do {
-                            avcodec_send_packet(codecCtx, &packet);
+                            error = avcodec_send_packet(codecCtx, &packet);
+                            if (error == -1) break;
                             error = avcodec_receive_frame(codecCtx, frame);
-                        } while (error == AVERROR(EAGAIN));
+                        } while ((error == AVERROR(EAGAIN)) && (++attempts < CD_READ_ATTEMPTS));
                         if (error != 0) {
-                            printf("[warning] could not read video frame\n");
+                            printf("[warning] could not read video frame (#%u)\n", id);
                         } else if (cd_video_thumbnail_init(&jpegCtx, format->streams[vindex], frame, vbase)) {
                             if (interlaced) *interlaced = frame->interlaced_frame;
                             if (frame->width != jpegCtx->width) {
@@ -178,7 +181,7 @@ void cd_video_generate_thumbnails(AVFormatContext* format, int vindex, cd_video_
                             avcodec_send_frame(jpegCtx, frame);
                             avcodec_receive_packet(jpegCtx, &jpegPac);
                             char* tpath = (char*)malloc(strlen(vbase->dir) + 16);
-                            sprintf(tpath, "%s/%u-%d.jpg", vbase->dir, id, i + 1);
+                            sprintf(tpath, "%s/%u-%d.jpg", vbase->dir, id, tid++);
                             printf("[video] writing thumbnail to %s\n", tpath);
                             int tfd = open(tpath, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
                             if (tfd != -1) {
@@ -325,7 +328,7 @@ void cd_video_finish(void* udata) {
 
 static cd_extractor_info cd_video = {
     "video",
-    "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv)$",
+    "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv|flv)$",
     cd_video_init,
     cd_video_getdata,
     cd_video_finish,

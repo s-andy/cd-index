@@ -160,7 +160,7 @@ int cd_list(const char* file) {
                 if ((path && (entry.parent != path->id)) || (!path && entry.parent))
                     path = cd_free_entries(path, entry.parent, base);
                 printf("%c%c%c%c%c%c%c%c%c%c 1",
-                    (entry.type <= CD_ARC) ? 'd' : (entry.type == CD_LNK) ? 'l' : '-',
+                    ((entry.type == CD_DIR) || ((entry.type == CD_ARC) && (entry.child != 0))) ? 'd' : (entry.type == CD_LNK) ? 'l' : '-',
                     (entry.mode & S_IRUSR) ? 'r' : '-',
                     (entry.mode & S_IWUSR) ? 'w' : '-',
                     (entry.mode & S_IXUSR) ? 'x' : '-',
@@ -440,7 +440,7 @@ int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
 cd_dumper_info cd_dumpers[] = {
     { "\\.mp3$", cd_dump_audio },
     { "\\.(bmp|gif|ico|jpe?g|png|psd|svg|tiff?|xcf|nef|crw|cr2)$", cd_dump_image },
-    { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv)$", cd_dump_video },
+    { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv|flv)$", cd_dump_video },
     { NULL, NULL }
 };
 

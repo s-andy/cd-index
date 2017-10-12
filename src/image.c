@@ -210,7 +210,17 @@ cd_offset cd_image_getdata(const char* file, cd_file_entry* cdentry, void* udata
             char* tpath = (char*)malloc(strlen(((cd_image_base*)udata)->dir) + 16);
             sprintf(tpath, "%s/%u.jpg", ((cd_image_base*)udata)->dir, cdentry->id);
             printf("[image] writing thumbnail to %s\n", tpath);
-            MagickWriteImage(wand, tpath);
+            if (MagickGetImageAlphaChannel(wand)) {
+                PixelWand* pixel = NewPixelWand();
+                PixelSetColor(pixel, "grey");
+                MagickSetImageBackgroundColor(wand, pixel);
+                MagickWand* twand = MagickMergeImageLayers(wand, FlattenLayer);
+                MagickWriteImage(twand, tpath);
+                DestroyMagickWand(twand);
+                DestroyPixelWand(pixel);
+            } else {
+                MagickWriteImage(wand, tpath);
+            }
             free(tpath);
         }
 #endif /* INCLUDE_THUMBNAILS */
