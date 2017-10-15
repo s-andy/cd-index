@@ -115,22 +115,18 @@ void cd_update_entry(struct stat64* stat, cd_file_entry* entry, cd_base* base) {
     cd_save_entry(entry, base);
 }
 
-cd_file_entry* cd_autocreate_path(const char* path, cd_file_entry* entry, cd_file_entry* parent, cd_offset* offset) {
+cd_file_entry* cd_autocreate_path(const char* path, cd_file_entry* upper, cd_offset* offset, cd_base* base) {
+    const char* dir = path;
     char* end = strchr(path, '/');
-    if (end && *(end+1)) {
-        if (end == path) {
-            printf("[fixme] path starts with '/': %s\n", path);
-            return NULL;
-        }
-        char name[CD_NAME_MAX];
-        memcpy(name, path, end - path);
-        name[end-path] = '\0';
-        end = strchr(end + 1, '/');
-        if (!end || !*(end+1)) {
-            entry->id = (*offset)++;
-            entry->type = CD_DIR;
-            memset(entry->name, '\0', CD_NAME_MAX);
-            strncpy(entry->name, name, CD_NAME_MAX);
+    cd_file_entry* parent = upper;
+    cd_file_entry* entry = NULL;
+    while (end && *(end+1)) {
+        entry = (cd_file_entry*)malloc(sizeof(cd_file_entry));
+        memset(entry->name, '\0', CD_NAME_MAX);
+        memcpy(entry->name, dir, end - dir);
+        if (entry->name[0]) {
+            entry->id    = (*offset)++;
+            entry->type  = CD_DIR;
             entry->mode  = (unsigned short)S_IFDIR|S_IRUSR|S_IXUSR|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH;
             entry->mtime = 0;
             entry->uid   = 0;
@@ -141,13 +137,27 @@ cd_file_entry* cd_autocreate_path(const char* path, cd_file_entry* entry, cd_fil
             if (parent->child == 0) parent->child = entry->id;
             entry->child = 0;
             entry->next  = 0;
-            printf("[warning] automatically created directory %s\n", name);
-            return entry;
+            if (parent == upper) {
+                printf("[warning] automatically creating directory %s\n", entry->name);
+            } else {
+                printf("[warning] automatically creating directory %s (under %s)\n", entry->name, parent->name);
+            }
         } else {
-            printf("[fixme] autocreate of multiple dirs is not supported\n");
+            free(entry);
+            return NULL;
         }
+        if (parent == upper) {
+            cd_fix_prev(parent, entry, base);
+        } else {
+            cd_save_entry(parent, base);
+            free(parent);
+        }
+        parent = entry;
+        dir = end + 1;
+        end = strchr(dir, '/');
     }
-    return NULL;
+    if (entry) cd_save_entry(entry, base);
+    return entry;
 }
 
 cd_file_entry* cd_find_parent(const char* path, cd_file_entry* parent, cd_offset* eoff, cd_base* base) {
@@ -156,6 +166,7 @@ cd_file_entry* cd_find_parent(const char* path, cd_file_entry* parent, cd_offset
     off_t offset;
     const char* dir;
     cd_offset index = parent->id + 1;
+    cd_file_entry* upper = NULL;
     cd_file_entry* entry = (cd_file_entry*)malloc(sizeof(cd_file_entry));
     for (dir = path; next && *(next+1);) {
         if (index) {
@@ -166,31 +177,34 @@ cd_file_entry* cd_find_parent(const char* path, cd_file_entry* parent, cd_offset
                         entry->id = index;
                         if (!strncmp(entry->name, dir, next - dir) && !entry->name[next-dir]) {
                             index = entry->child;
+                            free(upper);
+                            upper = (cd_file_entry*)malloc(sizeof(cd_file_entry));
+                            memcpy(upper, entry, sizeof(cd_file_entry));
                             break;
                         } else if (entry->next) {
                             index = entry->next;
                             continue;
                         }
                     }
-                    if (cd_autocreate_path(dir, entry, parent, eoff)) {
-                        cd_fix_prev(parent, entry, base);
-                        return entry;
-                    } else {
-                        free(entry);
-                        return NULL;
-                    }
+                    free(entry);
+                    entry = cd_autocreate_path(dir, (upper) ? upper : parent, eoff, base);
+                    if (upper) free(upper);
+                    return entry;
                 } else {
                     free(entry);
+                    if (upper) free(upper);
                     return NULL;
                 }
             }
         } else {
             free(entry);
+            if (upper) free(upper);
             return NULL;
         }
         dir = next + 1;
         next = strchr(dir, '/');
     }
+    if (upper) free(upper);
     return entry;
 }
 
