@@ -122,7 +122,7 @@ AVFrame* cd_video_resize_frame(AVCodecContext* srcCtx, AVCodecContext* dstCtx, A
     uint8_t* buf = (uint8_t*)av_malloc(bufsize * sizeof(uint8_t));
     av_image_fill_arrays(newf->data, newf->linesize, buf, srcCtx->pix_fmt, dstCtx->width, dstCtx->height, 1);
     sws_scale(swsCtx, (const uint8_t* const*)frame->data, frame->linesize, 0, srcCtx->height, newf->data, newf->linesize);
-    av_free(buf);
+    av_free(buf); // FIXME SIGABRT in __GI_raise()
     av_frame_free(&frame);
     sws_freeContext(swsCtx);
     newf->format = srcCtx->pix_fmt;
@@ -172,13 +172,13 @@ void cd_video_generate_thumbnails(AVFormatContext* format, int vindex, cd_video_
                             error = avcodec_receive_frame(codecCtx, frame);
                         } while ((error == AVERROR(EAGAIN)) && (++attempts < CD_READ_ATTEMPTS));
                         if (error != 0) {
-                            printf("[warning] could not read video frame (#%u)\n", id);
+                            printf("[warning] could not encode video frame (#%u)\n", id);
                         } else if (cd_video_thumbnail_init(&jpegCtx, format->streams[vindex], frame, vbase)) {
                             if (interlaced) *interlaced = frame->interlaced_frame;
                             if (frame->width != jpegCtx->width) {
                                 frame = cd_video_resize_frame(codecCtx, jpegCtx, frame);
                             }
-                            avcodec_send_frame(jpegCtx, frame);
+                            avcodec_send_frame(jpegCtx, frame); // FIXME SIGSEGV in __memmove_sse2_unaligned_erms() called by avcodec_encode_video2()
                             avcodec_receive_packet(jpegCtx, &jpegPac);
                             char* tpath = (char*)malloc(strlen(vbase->dir) + 16);
                             sprintf(tpath, "%s/%u-%d.jpg", vbase->dir, id, tid++);
