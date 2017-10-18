@@ -440,7 +440,7 @@ int cd_dump_video(const char* arch, cd_file_entry* entry, const char* to) {
 cd_dumper_info cd_dumpers[] = {
     { "\\.mp3$", cd_dump_audio },
     { "\\.(bmp|gif|ico|jpe?g|png|psd|svg|tiff?|xcf|nef|crw|cr2)$", cd_dump_image },
-    { "\\.(mpe?g|vob|ogg|mov|mp4|mkv|avi|3gp|wmv|flv)$", cd_dump_video },
+    { "\\.(mpe?g|vob|mov|mp4|mkv|avi|3gp|wmv|flv)$", cd_dump_video },
     { NULL, NULL }
 };
 

@@ -2,9 +2,9 @@
 
 GCC = gcc
 CFLAGS = -g -Wall -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
-CDINDEX_FLAGS = `pkg-config --cflags MagickWand` `pkg-config --cflags libavformat` `pkg-config --cflags libavcodec` `pkg-config --cflags libavutil` `pkg-config --cflags libswscale`
+CDINDEX_FLAGS = `pkg-config --cflags MagickWand` `pkg-config --cflags libavformat`
 
-CDILIBS = -lm -larchive -lraw `pkg-config --libs MagickWand` `pkg-config --libs libavformat` `pkg-config --libs libavcodec` `pkg-config --libs libavutil` `pkg-config --libs libswscale`
+CDILIBS = -lm -larchive -lraw -lffmpegthumbnailer `pkg-config --libs MagickWand` `pkg-config --libs libavformat` `pkg-config --libs libavcodec` `pkg-config --libs libavutil`
 
 cdindex: bin bin/cdindex bin/cdbrowse bin/cdfind bin/cdupgrade
 
