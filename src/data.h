@@ -47,7 +47,7 @@ typedef struct {
 
 typedef struct {
     char mark[3];           // "CDI"
-    cd_byte version;        // 0x01
+    cd_byte version;        // 0x02
 } packed(cd_index_mark);
 
 typedef struct {

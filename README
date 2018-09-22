@@ -16,6 +16,10 @@ CDIndex include the following binaries:
 
 This section describes how to install CDIndex.
 
+To compilte it under Debian/Ubuntu you need to install make,
+gcc, pkg-config, libmagickwand-dev, libavformat-dev,
+libarchive-dev, libraw-dev and libffmpegthumbnailer-dev.
+
 2.1. Installing cdbrowse
 
 To install cdbrowse add the following to the file

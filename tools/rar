@@ -10,7 +10,7 @@ use constant {
 sub rar_list {
     my $rarfile = shift;
 
-    if (open(PIPE, "unrar v -c- -y $rarfile |")) {
+    if (open(PIPE, "unrar v -c- -p- -y $rarfile |")) {
         my $parse = false;
         my ($size, $mday, $mon, $year, $hour, $min, $dir, $name);
         while (<PIPE>) {

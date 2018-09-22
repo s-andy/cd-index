@@ -133,6 +133,8 @@ cd_bool cd_video_get_interlaced(AVFormatContext* format, int vindex) {
 int cd_video_generate_thumbnails(const char* file, int duration, int id, const char* dir) {
     int i, tid = 0;
     char stime[24];
+    const char* ext = strrchr(file, '.');
+    if (ext && !strcasecmp(ext, ".SSIF")) return tid; // Currently thumbnailer fails to generate thumbnails for SSIFs
     srand(time(NULL));
     int start = 0, range = duration;
     cd_get_offset_and_range(&start, &range);
@@ -274,7 +276,7 @@ void cd_video_finish(void* udata) {
 
 static cd_extractor_info cd_video = {
     "video",
-    "\\.(mpe?g|vob|mov|mp4|mkv|avi|3gp|wmv|flv)$",
+    "\\.(mpe?g|vob|mov|mp4|mkv|avi|3gp|wmv|flv|m2ts|ssif)$",
     cd_video_init,
     cd_video_getdata,
     cd_video_finish,

@@ -76,7 +76,7 @@ int cd_upgrade_v1_to_v2(const char* v1, const char* v2) {
             regex_t* vregex = (regex_t*)malloc(sizeof(regex_t));
             regcomp(iregex, "\\.(bmp|gif|ico|jpe?g|png|psd|svg|tiff?|xcf)$", REG_EXTENDED|REG_ICASE|REG_NOSUB);
             regcomp(riregex, "\\.(nef|crw|cr2)$", REG_EXTENDED|REG_ICASE|REG_NOSUB);
-            regcomp(vregex, "\\.(mpe?g|vob|mov|mp4|mkv|avi|3gp|wmv|flv)$", REG_EXTENDED|REG_ICASE|REG_NOSUB);
+            regcomp(vregex, "\\.(mpe?g|vob|mov|mp4|mkv|avi|3gp|wmv|flv|m2ts|ssif)$", REG_EXTENDED|REG_ICASE|REG_NOSUB);
             char buf[CD_NAME_MAX+1];
             buf[CD_NAME_MAX] = '\0';
             int invsizes = 0, files = 0, images = 0, rimages = 0, videos = 0;
